@@ -77,6 +77,63 @@ bonifici che azzera tutti i saldi e, se vuoi, li scrive in `Giroconti`.
 **Verificare.** Il foglio `Controlli` è sempre aggiornato. Il comando Verifica
 integrità legge lo stesso foglio e ne riassume l'esito in una finestra.
 
+## Se entra un socio nuovo
+
+Aggiungi una riga in `Anagrafica` con un `id_socio` nuovo, il nome e la spunta
+`attivo`. Non serve altro: non c'è schema da modificare, non c'è nessun
+`setup` da rilanciare, e non c'è niente da ricalcolare.
+
+Funziona da solo perché tutto punta all'anagrafica in modo dinamico. Le tendine
+di `Quote`, `Pagamenti` e `Giroconti` leggono `Anagrafica!A2:A`, quindi il nuovo
+socio compare subito. Il foglio `Saldi` prende le righe da un `FILTER` sulla
+stessa colonna, quindi si allunga da sé, e le formule delle colonne B–G sono già
+predisposte fino a `RIGHE_SALDI`. La sidebar rilegge l'anagrafica a ogni
+apertura: chiudila e riaprila se era già aperta.
+
+**Le spese passate non si toccano.** Il nuovo socio parte da saldo zero e non
+entra in nulla di ciò che è già stato registrato. È il motivo per cui le quote
+sono righe scritte e non formule: se fossero calcolate, l'ingresso in
+anagrafica ricalcolerebbe all'indietro anni di ripartizioni.
+
+**Il fondo comune non si diluisce.** La giacenza di cassa non è un pentolone
+indiviso: i saldi individuali dicono già quanto di quel denaro spetta a
+ciascuno. Un socio che entra con saldo zero non intacca i crediti degli altri.
+Se il gruppo decide che debba portarsi in pari con gli altri, è un versamento
+normale, cioè un giroconto `SocioNuovo → CASSA`.
+
+**Il prezzo della quota di proprietà resta fuori.** Il denaro che il nuovo
+socio paga a chi gli cede la quota è una compravendita tra persone, non una
+spesa del gruppo: non va né in `Spese` né in `Giroconti`. Registrarla
+sbilancerebbe i saldi senza motivo.
+
+Da quel momento `UGUALE_TUTTI` comprende anche lui. Se una spesa era già stata
+registrata prima del suo ingresso ma va divisa anche con lui, riaprila in
+modifica: quote e pagamenti vengono riscritti da capo.
+
+### Se un socio esce
+
+L'ordine conta:
+
+1. Conguaglia, così il suo saldo va a zero (menu → Calcola conguaglio).
+2. Verifica in `Saldi` che sia effettivamente a zero.
+3. Togli la spunta `attivo`. **Non cancellare la riga**: il suo `id_socio` è
+   citato in tutte le quote e i pagamenti storici, e senza la riga in anagrafica
+   i `Controlli` segnalerebbero soci inesistenti e il suo saldo sparirebbe dal
+   totale.
+
+Un socio disattivato sparisce dalle tendine della sidebar ma resta in `Saldi` e
+nel conguaglio: è voluto, finché ha un saldo diverso da zero deve restare
+visibile.
+
+**Non riusare mai un `id_socio`.** Se entra qualcuno al posto di chi è uscito,
+dagli un id nuovo. Riciclare l'id vecchio gli attribuirebbe le spese del
+predecessore. La colonna `nome`, invece, si può cambiare liberamente: è solo
+l'etichetta mostrata, e nessuna tabella la referenzia.
+
+Se il socio uscente era quello indicato in `socio_arrotondamento`, aggiorna la
+chiave in `Metadati`, altrimenti il resto delle divisioni finirà al primo
+partecipante di ogni spesa con un avviso giallo nella sidebar.
+
 ## Come è fatto
 
 Tre concetti tenuti separati: quanto costa (`Spese`), chi lo deve (`Quote`),
@@ -147,9 +204,19 @@ nomi di funzione in inglese e virgola come separatore. Nell'interfaccia le
 vedrai tradotte e col punto e virgola. È normale e non dipende dalla lingua del
 foglio.
 
-**Se i Saldi mostrano un valore solo invece di una colonna**, l'`ARRAYFORMULA`
-non si è espansa: controlla che le colonne B–G di `Saldi` non contengano altro
-sotto la riga 2, poi rilancia `setup`.
+**Perché `Saldi` non usa ARRAYFORMULA.** `SUMIFS` e `COUNTIFS` non si espandono
+dentro `ARRAYFORMULA`: ignorano il criterio ad array e restituiscono un valore
+unico, replicato identico su ogni riga. Le varianti a criterio singolo (`SUMIF`,
+`COUNTIF`) invece si espandono. Le colonne B–G di `Saldi` servono due criteri
+(il socio e la validità della spesa), quindi sono formule riga per riga, scritte
+in un blocco fisso di `RIGHE_SALDI` righe (100 di default, in `Costanti.gs`). Se
+un giorno l'anagrafica superasse quel numero, alza la costante e rilancia
+`setup`.
+
+Stessa trappola nella colonna `valida`, che per questo usa `VLOOKUP` e non
+`COUNTIFS`. Se modifichi quelle formule, la regola da ricordare è: dentro
+`ARRAYFORMULA` vanno bene `SUMIF`, `COUNTIF`, `VLOOKUP`, `SUMPRODUCT`; non vanno
+bene le varianti con la S finale.
 
 **Modifiche manuali alle colonne calcolate.** Le colonne `valida` e i fogli
 `Saldi` e `Controlli` sono protetti con solo avviso: Google chiede conferma ma

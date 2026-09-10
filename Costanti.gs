@@ -57,5 +57,13 @@ var STATI = ['OK', 'ANNULLATA'];
 /** Numero di soci placeholder creati al primo setup. */
 var N_SOCI_INIZIALI = 3;
 
+/**
+ * Righe di formule predisposte nel foglio Saldi. Le colonne B-G non possono
+ * essere ARRAYFORMULA (vedi commento in costruisciSaldi_), quindi si scrive
+ * un blocco fisso: e' il tetto massimo di soggetti in Anagrafica, cassa
+ * compresa. Alzarlo e rilanciare setup se un giorno servisse.
+ */
+var RIGHE_SALDI = 100;
+
 /** Timeout del lock sulle scritture, in millisecondi. */
 var LOCK_MS = 30000;

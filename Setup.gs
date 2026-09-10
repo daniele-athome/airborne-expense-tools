@@ -214,9 +214,14 @@ function costruisciSpese_(ss) {
  * automaticamente da tutti i calcoli, senza cancellare righe.
  */
 function formulaValida_() {
+  // Attenzione: COUNTIFS non si espande dentro ARRAYFORMULA (restituisce un
+  // valore unico replicato su tutte le righe). VLOOKUP invece si espande
+  // correttamente, e in un colpo solo verifica che la spesa esista e che sia
+  // in stato OK: se l'id non c'e', IFERROR restituisce "" e il confronto e'
+  // falso.
   return '=ARRAYFORMULA(IF($A$2:$A="","",' +
-         'N(COUNTIFS(' + FOGLI.SPESE + '!$A$2:$A,$A$2:$A,' +
-         FOGLI.SPESE + '!$F$2:$F,"OK")>0)))';
+         'N(IFERROR(VLOOKUP($A$2:$A,' + FOGLI.SPESE + '!$A$2:$F,' +
+         COL.SPESE.STATO + ',FALSE),"")="OK")))';
 }
 
 function costruisciQuote_(ss) {
@@ -278,6 +283,9 @@ function costruisciSaldi_(ss) {
   var sh = ss.getSheetByName(FOGLI.SALDI) || ss.insertSheet(FOGLI.SALDI);
   sh.clear();
   sh.clearConditionalFormatRules();
+  if (sh.getMaxRows() < RIGHE_SALDI + 1) {
+    sh.insertRowsAfter(sh.getMaxRows(), RIGHE_SALDI + 1 - sh.getMaxRows());
+  }
 
   sh.getRange(1, 1, 1, 7).setValues([[
     'id_socio', 'nome', 'pagato', 'dovuto', 'versato', 'ricevuto', 'saldo'
@@ -289,28 +297,25 @@ function costruisciSaldi_(ss) {
   sh.getRange('A2').setFormula(
     '=FILTER(' + A + '!$A$2:$A,' + A + '!$A$2:$A<>"")');
 
-  sh.getRange('B2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",IFERROR(VLOOKUP($A$2:$A,' +
-    A + '!$A:$B,2,FALSE),"?")))');
-
-  sh.getRange('C2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",SUMIFS(' + P + '!$C$2:$C,' +
-    P + '!$B$2:$B,$A$2:$A,' + P + '!$D$2:$D,1)))');
-
-  sh.getRange('D2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",SUMIFS(' + Q + '!$C$2:$C,' +
-    Q + '!$B$2:$B,$A$2:$A,' + Q + '!$D$2:$D,1)))');
-
-  sh.getRange('E2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",SUMIF(' + G + '!$B$2:$B,$A$2:$A,' +
-    G + '!$D$2:$D)))');
-
-  sh.getRange('F2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",SUMIF(' + G + '!$C$2:$C,$A$2:$A,' +
-    G + '!$D$2:$D)))');
-
-  sh.getRange('G2').setFormula(
-    '=ARRAYFORMULA(IF($A$2:$A="","",$C$2:$C-$D$2:$D+$E$2:$E-$F$2:$F))');
+  // Le colonne B-G sono formule riga per riga, non ARRAYFORMULA.
+  // SUMIFS e COUNTIFS non si espandono dentro ARRAYFORMULA: ignorano il
+  // criterio ad array e restituiscono un valore unico, replicato identico su
+  // tutte le righe. Qui servono due criteri (il socio e la validita' della
+  // spesa), quindi la strada e' la formula per riga.
+  var righe = [];
+  for (var r = 2; r <= 2 + RIGHE_SALDI - 1; r++) {
+    righe.push([
+      '=IF($A' + r + '="","",IFERROR(VLOOKUP($A' + r + ',' + A + '!$A:$B,2,FALSE),"?"))',
+      '=IF($A' + r + '="","",SUMIFS(' + P + '!$C$2:$C,' +
+        P + '!$B$2:$B,$A' + r + ',' + P + '!$D$2:$D,1))',
+      '=IF($A' + r + '="","",SUMIFS(' + Q + '!$C$2:$C,' +
+        Q + '!$B$2:$B,$A' + r + ',' + Q + '!$D$2:$D,1))',
+      '=IF($A' + r + '="","",SUMIF(' + G + '!$B$2:$B,$A' + r + ',' + G + '!$D$2:$D))',
+      '=IF($A' + r + '="","",SUMIF(' + G + '!$C$2:$C,$A' + r + ',' + G + '!$D$2:$D))',
+      '=IF($A' + r + '="","",$C' + r + '-$D' + r + '+$E' + r + '-$F' + r + ')'
+    ]);
+  }
+  sh.getRange(2, 2, righe.length, 6).setFormulas(righe);
 
   // Riquadro di sintesi.
   sh.getRange('I1').setValue('Sintesi').setFontWeight('bold');
