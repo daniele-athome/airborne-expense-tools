@@ -23,6 +23,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Calcola conguaglio...', 'mostraConguaglio')
     .addItem('Verifica integrita', 'verificaIntegrita')
+    .addItem('Compatta Quote e Pagamenti', 'compattaTabelle')
     .addSeparator()
     .addItem('Ricostruisci struttura', 'setup')
     .addToUi();

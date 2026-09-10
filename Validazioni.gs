@@ -45,6 +45,65 @@ function verificaIntegrita() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Compattazione delle tabelle figlie                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Riporta sotto l'intestazione le righe di Quote e Pagamenti finite lontano
+ * nel foglio, e chiude i buchi lasciati dalle cancellazioni.
+ *
+ * Serviva a rimediare a un difetto di accodaRighe_, che calcolava il punto di
+ * inserimento con getLastRow(): su questi due fogli l'ARRAYFORMULA della
+ * colonna `valida` lo gonfiava fino al fondo. Il difetto e' corretto, ma il
+ * comando resta utile come manutenzione.
+ *
+ * Tocca solo le colonne A-C: la colonna calcolata resta dov'e'.
+ * L'ordine delle righe e' irrilevante per i saldi, che sommano per id.
+ */
+function compattaTabelle() {
+  var ui = SpreadsheetApp.getUi();
+  var risposta = ui.alert('Compattare Quote e Pagamenti?',
+    'Le righe vengono riscritte una sotto l\'altra a partire dalla riga 2.\n' +
+    'Nessun dato viene perso: cambia solo la posizione delle righe.',
+    ui.ButtonSet.YES_NO);
+  if (risposta !== ui.Button.YES) return;
+
+  var lock = LockService.getDocumentLock();
+  if (!lock.tryLock(LOCK_MS)) {
+    ui.alert('Un\'altra scrittura e\' in corso. Riprova tra qualche secondo.');
+    return;
+  }
+
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var esito = [];
+
+    [FOGLI.QUOTE, FOGLI.PAGAMENTI].forEach(function (nome) {
+      var sh = ss.getSheetByName(nome);
+      if (!sh || sh.getMaxRows() < 2) return;
+
+      var altezza = sh.getMaxRows() - 1;
+      var valori = sh.getRange(2, 1, altezza, 3).getValues();
+      var buone = valori.filter(function (r) { return String(r[0]).trim() !== ''; });
+
+      sh.getRange(2, 1, altezza, 3).clearContent();
+      if (buone.length) sh.getRange(2, 1, buone.length, 3).setValues(buone);
+
+      esito.push(nome + ': ' + buone.length + ' righe');
+    });
+
+    SpreadsheetApp.flush();
+    scriviLog_('COMPATTAZIONE', '', esito.join(' | '));
+    ui.alert('Compattazione eseguita', esito.join('\n') +
+      '\n\nControlla il foglio Saldi: i totali non devono essere cambiati.',
+      ui.ButtonSet.OK);
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Autotest della logica di ripartizione                               */
 /* ------------------------------------------------------------------ */
 

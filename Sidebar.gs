@@ -113,11 +113,12 @@ function salvaSpesa(payload) {
       id = prossimoIdSpesa_();
     }
 
+    // Tre colonne soltanto: la quarta, `valida`, appartiene all'ARRAYFORMULA.
     accodaRighe_(FOGLI.QUOTE, quote.map(function (q) {
-      return [id, q.socio, q.importo, ''];
+      return [id, q.socio, q.importo];
     }));
     accodaRighe_(FOGLI.PAGAMENTI, pagamenti.map(function (x) {
-      return [id, x.pagante, x.importo, ''];
+      return [id, x.pagante, x.importo];
     }));
 
     var testata = [id, parsaData_(p.data), p.descrizione, p.importo,
@@ -126,7 +127,11 @@ function salvaSpesa(payload) {
     if (modifica) {
       shSpese.getRange(rigaTestata, 1, 1, testata.length).setValues([testata]);
     } else {
-      shSpese.getRange(shSpese.getLastRow() + 1, 1, 1, testata.length).setValues([testata]);
+      var riga = ultimaRigaDati_(shSpese, COL.SPESE.ID) + 1;
+      if (riga > shSpese.getMaxRows()) {
+        shSpese.insertRowsAfter(shSpese.getMaxRows(), 1);
+      }
+      shSpese.getRange(riga, 1, 1, testata.length).setValues([testata]);
     }
 
     scriviLog_(modifica ? 'MODIFICA' : 'INSERIMENTO', id,

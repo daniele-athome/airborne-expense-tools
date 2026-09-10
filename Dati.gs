@@ -70,8 +70,9 @@ function insiemeSoci_(soloAttivi) {
  */
 function prossimoIdSpesa_() {
   var sh = SpreadsheetApp.getActive().getSheetByName(FOGLI.SPESE);
-  if (sh.getLastRow() < 2) return 1;
-  var valori = sh.getRange(2, COL.SPESE.ID, sh.getLastRow() - 1, 1).getValues();
+  var ultima = ultimaRigaDati_(sh, COL.SPESE.ID);
+  if (ultima < 2) return 1;
+  var valori = sh.getRange(2, COL.SPESE.ID, ultima - 1, 1).getValues();
   var max = 0;
   for (var i = 0; i < valori.length; i++) {
     var n = Number(valori[i][0]);
@@ -83,8 +84,9 @@ function prossimoIdSpesa_() {
 /** Numero di riga della spesa, oppure 0 se non esiste. */
 function trovaRigaSpesa_(id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(FOGLI.SPESE);
-  if (sh.getLastRow() < 2) return 0;
-  var valori = sh.getRange(2, COL.SPESE.ID, sh.getLastRow() - 1, 1).getValues();
+  var ultima = ultimaRigaDati_(sh, COL.SPESE.ID);
+  if (ultima < 2) return 0;
+  var valori = sh.getRange(2, COL.SPESE.ID, ultima - 1, 1).getValues();
   for (var i = 0; i < valori.length; i++) {
     if (Number(valori[i][0]) === Number(id)) return i + 2;
   }
@@ -123,8 +125,9 @@ function leggiSpesa_(id) {
 
 function leggiRigheFiglie_(nomeFoglio, id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(nomeFoglio);
-  if (sh.getLastRow() < 2) return [];
-  var valori = sh.getRange(2, 1, sh.getLastRow() - 1, 3).getValues();
+  var ultima = ultimaRigaDati_(sh, 1);
+  if (ultima < 2) return [];
+  var valori = sh.getRange(2, 1, ultima - 1, 3).getValues();
   var out = [];
   for (var i = 0; i < valori.length; i++) {
     if (Number(valori[i][0]) === Number(id)) out.push(valori[i]);
@@ -139,8 +142,9 @@ function leggiRigheFiglie_(nomeFoglio, id) {
  */
 function eliminaRigheFiglie_(nomeFoglio, id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(nomeFoglio);
-  if (sh.getLastRow() < 2) return 0;
-  var valori = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+  var ultima = ultimaRigaDati_(sh, 1);
+  if (ultima < 2) return 0;
+  var valori = sh.getRange(2, 1, ultima - 1, 1).getValues();
   var daEliminare = [];
   for (var i = 0; i < valori.length; i++) {
     if (Number(valori[i][0]) === Number(id)) daEliminare.push(i + 2);
@@ -152,11 +156,44 @@ function eliminaRigheFiglie_(nomeFoglio, id) {
   return daEliminare.length;
 }
 
-/** Accoda righe in fondo a un foglio, in un'unica scrittura. */
+/**
+ * Ultima riga con dati, guardando una sola colonna chiave.
+ *
+ * Non si usa getLastRow(): su Quote e Pagamenti la colonna calcolata `valida`
+ * contiene un'ARRAYFORMULA che si espande su tutta la colonna restituendo
+ * stringhe vuote, e getLastRow() le conta come contenuto. Il risultato sarebbe
+ * il fondo del foglio invece dell'ultima riga vera.
+ *
+ * @param {Sheet} sh
+ * @param {number=} colonna  colonna chiave, 1-based (default: la prima)
+ * @return {number} numero di riga, 1 se non ci sono dati
+ */
+function ultimaRigaDati_(sh, colonna) {
+  colonna = colonna || 1;
+  var max = sh.getMaxRows();
+  if (max < 2) return 1;
+  var valori = sh.getRange(2, colonna, max - 1, 1).getValues();
+  for (var i = valori.length - 1; i >= 0; i--) {
+    if (String(valori[i][0]).trim() !== '') return i + 2;
+  }
+  return 1;
+}
+
+/**
+ * Accoda righe in fondo a un foglio, in un'unica scrittura.
+ *
+ * Scrive solo le colonne passate: le righe figlie hanno tre colonne (id,
+ * soggetto, importo) e la quarta, `valida`, resta all'ARRAYFORMULA. Scriverci
+ * dentro un valore letterale la manderebbe in #REF!.
+ */
 function accodaRighe_(nomeFoglio, righe) {
   if (!righe.length) return;
   var sh = SpreadsheetApp.getActive().getSheetByName(nomeFoglio);
-  var partenza = sh.getLastRow() + 1;
+  var partenza = ultimaRigaDati_(sh, 1) + 1;
+  var ultima = partenza + righe.length - 1;
+  if (ultima > sh.getMaxRows()) {
+    sh.insertRowsAfter(sh.getMaxRows(), ultima - sh.getMaxRows());
+  }
   sh.getRange(partenza, 1, righe.length, righe[0].length).setValues(righe);
 }
 

@@ -218,6 +218,23 @@ Stessa trappola nella colonna `valida`, che per questo usa `VLOOKUP` e non
 `ARRAYFORMULA` vanno bene `SUMIF`, `COUNTIF`, `VLOOKUP`, `SUMPRODUCT`; non vanno
 bene le varianti con la S finale.
 
+**`getLastRow()` è inaffidabile su `Quote` e `Pagamenti`.** L'`ARRAYFORMULA`
+della colonna `valida` si espande su tutta la colonna restituendo stringhe
+vuote, e `getLastRow()` le conta come contenuto: restituisce il fondo del
+foglio, non l'ultima riga vera. Per questo lo script usa `ultimaRigaDati_()`,
+che guarda solo la colonna chiave. Se aggiungi codice che scrive su questi
+fogli, usa quella.
+
+Per lo stesso motivo le righe figlie vengono scritte su tre colonne soltanto:
+la quarta appartiene alla formula, e scriverci dentro un valore letterale la
+manderebbe in `#REF!`.
+
+**Righe finite in fondo al foglio.** Se in `Quote` o `Pagamenti` premi
+`Ctrl+Fine` e il cursore salta a una riga molto più in basso dei dati visibili,
+lancia menu → Compatta Quote e Pagamenti. Le righe vengono riportate sotto
+l'intestazione senza perdere nulla; i saldi non cambiano, perché sommano per
+`id_spesa` e non dipendono dalla posizione.
+
 **Modifiche manuali alle colonne calcolate.** Le colonne `valida` e i fogli
 `Saldi` e `Controlli` sono protetti con solo avviso: Google chiede conferma ma
 non blocca. Se qualcuno le sovrascrive, `ripristinaColonneCalcolate()` (o un
