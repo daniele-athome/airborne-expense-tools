@@ -199,10 +199,30 @@ quote senza toccare il foglio. Lanciala dall'editor dopo ogni modifica a
 
 ## Avvertenze
 
-**Notazione delle formule.** Apps Script scrive le formule in notazione en_US:
-nomi di funzione in inglese e virgola come separatore. Nell'interfaccia le
-vedrai tradotte e col punto e virgola. È normale e non dipende dalla lingua del
-foglio.
+**Separatore delle formule.** Google Sheets non normalizza le formule scritte
+via script: vanno espresse nella notazione del locale del foglio. Nei locali
+che usano la virgola come separatore decimale — `it_IT` fra questi — il
+separatore di argomenti è il punto e virgola.
+
+Lo script non dipende dal locale. Tutte le formule sono scritte con il
+segnaposto `~` al posto del separatore e passano da `f_()` prima di essere
+scritte. Il separatore giusto non è dedotto da una tabella di locali ma chiesto
+a Sheets: `separatoreArgomenti_()` scrive `=SUM(1,2)` in un foglio di appoggio
+temporaneo e guarda il risultato. Dove la virgola separa gli argomenti ottiene
+3; dove invece è il separatore decimale la formula vale `SUM(1.2)` e restituisce
+1,2. Il foglio di appoggio viene rimosso subito, e il separatore rilevato
+finisce nel `Log` a ogni `setup`.
+
+Per lo stesso motivo nel codice non compaiono array letterali `{a,b,c}`: anche
+il loro separatore di colonna cambia col locale. Il drill-down dei `Controlli`
+usa quattro `FILTER` separati.
+
+Se aggiungi formule, usa `~` e passa da `f_()`. Una virgola letterale funziona
+finché il foglio resta nel locale in cui l'hai provata.
+
+**Puoi cambiare il locale del foglio quando vuoi**, ma dopo averlo fatto
+rilancia `setup`: le formule già scritte restano nella notazione precedente e
+smettono di calcolare.
 
 **Perché `Saldi` non usa ARRAYFORMULA.** `SUMIFS` e `COUNTIFS` non si espandono
 dentro `ARRAYFORMULA`: ignorano il criterio ad array e restituiscono un valore
