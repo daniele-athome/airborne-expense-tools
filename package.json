@@ -1,0 +1,13 @@
+{
+  "name": "airborne-expense-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Airborne expense tools",
+  "scripts": {
+    "push": "clasp push"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.4.0",
+    "@types/google-apps-script": "^2.0.12"
+  }
+}
