@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  :root {
+    --inchiostro: #1c2024;
+    --attenuato: #626d78;
+    --riga: #dde1e6;
+    --sfondo: #ffffff;
+    --campo: #f6f7f9;
+    --azione: #2f5d7c;
+    --azione-scura: #244a63;
+    --quadra: #1b5e20;
+    --sbilancia: #b3261e;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 14px 14px 168px 14px;
+    font-family: Roboto, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--inchiostro);
+    background: var(--sfondo);
+  }
+
+  h1 {
+    font-size: 15px;
+    font-weight: 500;
+    margin: 0 0 2px 0;
+  }
+  .sottotitolo { color: var(--attenuato); margin: 0 0 16px 0; }
+
+  fieldset {
+    border: 0;
+    border-top: 1px solid var(--riga);
+    margin: 0 0 4px 0;
+    padding: 12px 0 14px 0;
+  }
+  fieldset:first-of-type { border-top: 0; padding-top: 0; }
+  legend {
+    padding: 0 6px 0 0;
+    font-weight: 500;
+    color: var(--attenuato);
+  }
+
+  label.campo { display: block; margin-bottom: 10px; }
+  label.campo > span { display: block; margin-bottom: 3px; color: var(--attenuato); }
+
+  input[type=text], input[type=date], input[type=number], select, textarea {
+    width: 100%;
+    padding: 6px 7px;
+    border: 1px solid var(--riga);
+    border-radius: 3px;
+    background: var(--campo);
+    font: inherit;
+    color: inherit;
+  }
+  input[type=number] { font-variant-numeric: tabular-nums; text-align: right; }
+  textarea { resize: vertical; min-height: 42px; }
+
+  input:focus-visible, select:focus-visible, textarea:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--azione);
+    outline-offset: 1px;
+  }
+
+  .scelte { display: flex; flex-direction: column; gap: 5px; }
+  .scelta { display: flex; align-items: baseline; gap: 7px; }
+  .scelta small { color: var(--attenuato); }
+
+  table.righe { width: 100%; border-collapse: collapse; }
+  table.righe td { padding: 2px 0; vertical-align: middle; }
+  table.righe td.nome { padding-right: 6px; }
+  table.righe td.valore {
+    width: 88px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  table.righe td.togli { width: 22px; text-align: right; }
+
+  .socio { display: flex; align-items: center; gap: 7px; }
+
+  button {
+    font: inherit;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  button.testo {
+    border: 0;
+    background: none;
+    padding: 4px 0;
+    color: var(--azione);
+    text-decoration: underline;
+  }
+  button.minimo {
+    border: 0;
+    background: none;
+    color: var(--attenuato);
+    padding: 0 2px;
+    font-size: 15px;
+    line-height: 1;
+  }
+  button.principale {
+    width: 100%;
+    padding: 9px;
+    border: 0;
+    background: var(--azione);
+    color: #fff;
+    font-weight: 500;
+  }
+  button.principale:hover { background: var(--azione-scura); }
+  button.principale:disabled { background: #b6bfc7; cursor: not-allowed; }
+  button.secondaria {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid var(--riga);
+    background: var(--sfondo);
+    margin-top: 6px;
+  }
+
+  #anteprima td.valore { font-weight: 500; }
+  #anteprima .resto { color: var(--attenuato); }
+
+  .piede {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    padding: 10px 14px 14px 14px;
+    background: var(--sfondo);
+    border-top: 1px solid var(--riga);
+  }
+  .quadratura { margin-bottom: 9px; }
+  .quadratura div {
+    display: flex;
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+  }
+  .quadratura .esito { font-weight: 500; }
+  .ok { color: var(--quadra); }
+  .ko { color: var(--sbilancia); }
+
+  .messaggio {
+    padding: 7px 9px;
+    border-radius: 3px;
+    margin-bottom: 9px;
+    display: none;
+  }
+  .messaggio.errore { display: block; background: #fbe9e7; color: var(--sbilancia); }
+  .messaggio.avviso { display: block; background: #fff8e1; color: #7a5c00; }
+  .messaggio.fatto  { display: block; background: #e8f5e9; color: var(--quadra); }
+
+  .caricamento { color: var(--attenuato); padding: 20px 0; }
+</style>
+</head>
+<body>
+
+<div id="caricamento" class="caricamento">Carico l'anagrafica...</div>
+
+<div id="pannello" style="display:none">
+
+  <h1 id="titolo">Nuova spesa</h1>
+  <p class="sottotitolo" id="sottotitolo">Quote e pagamenti vengono scritti insieme alla testata.</p>
+
+  <fieldset>
+    <label class="campo">
+      <span>Data</span>
+      <input type="date" id="data">
+    </label>
+    <label class="campo">
+      <span>Descrizione</span>
+      <input type="text" id="descrizione" placeholder="Assicurazione annuale">
+    </label>
+    <label class="campo">
+      <span>Importo totale</span>
+      <input type="number" id="importo" step="0.01" min="0" placeholder="0,00">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Come si divide</legend>
+    <div class="scelte" id="criteri"></div>
+  </fieldset>
+
+  <fieldset id="boxPartecipanti">
+    <legend>Chi partecipa</legend>
+    <div id="partecipanti"></div>
+    <button type="button" class="testo" id="tuttiNessuno">Seleziona tutti</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Chi ha pagato</legend>
+    <table class="righe" id="pagamenti"></table>
+    <button type="button" class="testo" id="aggiungiPagante">Aggiungi un altro pagante</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Quote risultanti</legend>
+    <table class="righe" id="anteprima"></table>
+  </fieldset>
+
+  <fieldset>
+    <label class="campo">
+      <span>Note</span>
+      <textarea id="note" rows="2"></textarea>
+    </label>
+  </fieldset>
+
+  <div class="piede">
+    <div id="messaggio" class="messaggio"></div>
+    <div class="quadratura">
+      <div><span>Quote</span><span id="qQuote">0,00</span></div>
+      <div><span>Pagamenti</span><span id="qPagamenti">0,00</span></div>
+      <div class="esito"><span id="qEtichetta">Da compilare</span><span id="qDelta"></span></div>
+    </div>
+    <button type="button" class="principale" id="salva" disabled>Salva spesa</button>
+    <button type="button" class="secondaria" id="chiudi">Chiudi</button>
+  </div>
+
+</div>
+
+<script>
+var DATI = null;
+var ID_SPESA = '<?= idSpesa ?>';
+var pagamenti = [];
+
+/* ---------- utilita' ---------- */
+
+function euro(n) {
+  return (Math.round(Number(n) * 100) / 100).toFixed(2).replace('.', ',');
+}
+function cent(v) {
+  var n = Number(v);
+  return isFinite(n) ? Math.round(n * 100) : 0;
+}
+function el(id) { return document.getElementById(id); }
+
+function criterioAttivo() {
+  var r = document.querySelector('input[name=criterio]:checked');
+  return r ? r.value : 'UGUALE_TUTTI';
+}
+function selezionati() {
+  return Array.prototype.slice
+    .call(document.querySelectorAll('.partecipa:checked'))
+    .map(function (c) { return c.value; });
+}
+
+/* ---------- calcolo quote, speculare a Ripartizione.gs ---------- */
+
+function quoteLocali() {
+  var totale = cent(el('importo').value);
+  var criterio = criterioAttivo();
+  var scelti = selezionati();
+  if (totale <= 0 || !scelti.length) return { quote: [], resto: 0, destinatario: null };
+
+  if (criterio === 'MANUALE') {
+    return {
+      quote: scelti.map(function (s) {
+        return { socio: s, importo: cent(valoreManuale(s)) / 100 };
+      }),
+      resto: 0, destinatario: null
+    };
+  }
+
+  var n = scelti.length;
+  var base = Math.floor(totale / n / 100) * 100;
+  var resto = totale - base * n;
+  var dest = scelti.indexOf(DATI.socioArrotondamento) !== -1
+    ? DATI.socioArrotondamento : scelti[0];
+
+  return {
+    quote: scelti.map(function (s) {
+      return { socio: s, importo: (base + (s === dest ? resto : 0)) / 100 };
+    }),
+    resto: resto,
+    destinatario: dest
+  };
+}
+
+function valoreManuale(id) {
+  var i = document.querySelector('.manuale[data-socio="' + id + '"]');
+  return i ? i.value : 0;
+}
+
+/* ---------- costruzione del pannello ---------- */
+
+function costruisci() {
+  el('caricamento').style.display = 'none';
+  el('pannello').style.display = 'block';
+
+  if (DATI.spesa) {
+    el('titolo').textContent = 'Modifica spesa ' + DATI.spesa.id;
+    el('sottotitolo').textContent =
+      'Quote e pagamenti vengono riscritti da capo, non corretti riga per riga.';
+  }
+
+  var criteri = { UGUALE_TUTTI: 'tra tutti i soci attivi',
+                  UGUALE_SELEZIONE: 'tra i soci che scegli',
+                  MANUALE: 'importi decisi a mano' };
+  el('criteri').innerHTML = DATI.criteri.map(function (c, i) {
+    return '<div class="scelta">' +
+      '<input type="radio" name="criterio" id="cr' + i + '" value="' + c + '">' +
+      '<label for="cr' + i + '">' + c.toLowerCase().replace(/_/g, ' ') +
+      ' <small>' + criteri[c] + '</small></label></div>';
+  }).join('');
+
+  el('partecipanti').innerHTML = '<table class="righe">' + DATI.soci.map(function (s) {
+    return '<tr>' +
+      '<td class="nome"><span class="socio">' +
+        '<input type="checkbox" class="partecipa" id="p_' + s.id + '" value="' + s.id + '">' +
+        '<label for="p_' + s.id + '">' + s.nome + '</label></span></td>' +
+      '<td class="valore"><input type="number" class="manuale" step="0.01" min="0" ' +
+        'data-socio="' + s.id + '" style="display:none"></td>' +
+      '</tr>';
+  }).join('') + '</table>';
+
+  el('data').value = DATI.spesa ? DATI.spesa.data : DATI.oggi;
+
+  if (DATI.spesa) {
+    el('descrizione').value = DATI.spesa.descrizione;
+    el('importo').value = DATI.spesa.importo;
+    el('note').value = DATI.spesa.note;
+    var radio = document.querySelector('input[name=criterio][value="' + DATI.spesa.criterio + '"]');
+    if (radio) radio.checked = true;
+    DATI.spesa.quote.forEach(function (q) {
+      var c = el('p_' + q.socio);
+      if (c) c.checked = true;
+      var m = document.querySelector('.manuale[data-socio="' + q.socio + '"]');
+      if (m) m.value = q.importo;
+    });
+    pagamenti = DATI.spesa.pagamenti.map(function (p) {
+      return { pagante: p.pagante, importo: p.importo };
+    });
+  } else {
+    document.querySelector('input[name=criterio][value="UGUALE_TUTTI"]').checked = true;
+    pagamenti = [{ pagante: '', importo: '' }];
+  }
+
+  collegaEventi();
+  applicaCriterio();
+  disegnaPagamenti();
+  aggiorna();
+}
+
+function collegaEventi() {
+  ['data', 'descrizione', 'note'].forEach(function (id) {
+    el(id).addEventListener('input', aggiorna);
+  });
+  el('importo').addEventListener('input', function () {
+    if (pagamenti.length === 1) {
+      pagamenti[0].importo = el('importo').value;
+      var campo = document.querySelector('.pagImporto[data-i="0"]');
+      if (campo) campo.value = pagamenti[0].importo;
+    }
+    aggiorna();
+  });
+  document.querySelectorAll('input[name=criterio]').forEach(function (r) {
+    r.addEventListener('change', function () { applicaCriterio(); aggiorna(); });
+  });
+  document.querySelectorAll('.partecipa').forEach(function (c) {
+    c.addEventListener('change', aggiorna);
+  });
+  document.querySelectorAll('.manuale').forEach(function (i) {
+    i.addEventListener('input', aggiorna);
+  });
+  el('tuttiNessuno').addEventListener('click', function () {
+    var caselle = document.querySelectorAll('.partecipa');
+    var tutti = Array.prototype.every.call(caselle, function (c) { return c.checked; });
+    caselle.forEach(function (c) { c.checked = !tutti; });
+    aggiorna();
+  });
+  el('aggiungiPagante').addEventListener('click', function () {
+    pagamenti.push({ pagante: '', importo: '' });
+    disegnaPagamenti();
+    aggiorna();
+  });
+  el('salva').addEventListener('click', salva);
+  el('chiudi').addEventListener('click', function () { google.script.host.close(); });
+}
+
+function applicaCriterio() {
+  var c = criterioAttivo();
+  var manuale = (c === 'MANUALE');
+
+  document.querySelectorAll('.manuale').forEach(function (i) {
+    i.style.display = manuale ? 'block' : 'none';
+  });
+  document.querySelectorAll('.partecipa').forEach(function (cb) {
+    if (c === 'UGUALE_TUTTI') { cb.checked = true; cb.disabled = true; }
+    else { cb.disabled = false; }
+  });
+  el('tuttiNessuno').style.display = (c === 'UGUALE_TUTTI') ? 'none' : 'inline';
+}
+
+function disegnaPagamenti() {
+  var opzioni = function (sel) {
+    return '<option value="">scegli...</option>' + DATI.paganti.map(function (s) {
+      var etichetta = (s.id === DATI.nomeCassa) ? s.nome + ' (fondo comune)' : s.nome;
+      return '<option value="' + s.id + '"' + (s.id === sel ? ' selected' : '') + '>' +
+             etichetta + '</option>';
+    }).join('');
+  };
+
+  el('pagamenti').innerHTML = pagamenti.map(function (p, i) {
+    return '<tr>' +
+      '<td class="nome"><select class="pagChi" data-i="' + i + '">' +
+        opzioni(p.pagante) + '</select></td>' +
+      '<td class="valore"><input type="number" class="pagImporto" step="0.01" min="0" ' +
+        'data-i="' + i + '" value="' + (p.importo === '' ? '' : p.importo) + '"></td>' +
+      '<td class="togli">' + (pagamenti.length > 1 ?
+        '<button type="button" class="minimo pagTogli" data-i="' + i +
+        '" title="Togli questa riga">&times;</button>' : '') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  document.querySelectorAll('.pagChi').forEach(function (s) {
+    s.addEventListener('change', function () {
+      pagamenti[Number(s.dataset.i)].pagante = s.value;
+      aggiorna();
+    });
+  });
+  document.querySelectorAll('.pagImporto').forEach(function (i) {
+    i.addEventListener('input', function () {
+      pagamenti[Number(i.dataset.i)].importo = i.value;
+      aggiorna();
+    });
+  });
+  document.querySelectorAll('.pagTogli').forEach(function (b) {
+    b.addEventListener('click', function () {
+      pagamenti.splice(Number(b.dataset.i), 1);
+      disegnaPagamenti();
+      aggiorna();
+    });
+  });
+}
+
+/* ---------- aggiornamento continuo ---------- */
+
+function aggiorna() {
+  var totale = cent(el('importo').value);
+  var ris = quoteLocali();
+
+  var sommaQuote = ris.quote.reduce(function (a, q) { return a + cent(q.importo); }, 0);
+  var sommaPag = pagamenti.reduce(function (a, p) { return a + cent(p.importo); }, 0);
+
+  var mappa = {};
+  DATI.soci.concat(DATI.paganti).forEach(function (s) { mappa[s.id] = s.nome; });
+
+  el('anteprima').innerHTML = ris.quote.length
+    ? ris.quote.map(function (q) {
+        var resto = (ris.destinatario === q.socio && ris.resto > 0)
+          ? ' <span class="resto">include il resto</span>' : '';
+        return '<tr><td class="nome">' + mappa[q.socio] + resto +
+               '</td><td class="valore">' + euro(q.importo) + '</td></tr>';
+      }).join('')
+    : '<tr><td class="nome" style="color:var(--attenuato)">Compila importo e partecipanti.</td></tr>';
+
+  el('qQuote').textContent = euro(sommaQuote / 100);
+  el('qPagamenti').textContent = euro(sommaPag / 100);
+
+  var pronto = totale > 0 && ris.quote.length > 0 &&
+               sommaQuote === totale && sommaPag === totale &&
+               pagamenti.every(function (p) { return p.pagante && cent(p.importo) > 0; }) &&
+               el('descrizione').value.trim() !== '' && el('data').value !== '';
+
+  var etichetta = el('qEtichetta'), delta = el('qDelta');
+  etichetta.className = '';
+  delta.className = '';
+
+  if (totale <= 0) {
+    etichetta.textContent = 'Da compilare';
+    delta.textContent = '';
+  } else if (sommaQuote !== totale) {
+    etichetta.textContent = 'Le quote non pareggiano';
+    etichetta.className = delta.className = 'ko';
+    delta.textContent = euro((sommaQuote - totale) / 100);
+  } else if (sommaPag !== totale) {
+    etichetta.textContent = 'I pagamenti non pareggiano';
+    etichetta.className = delta.className = 'ko';
+    delta.textContent = euro((sommaPag - totale) / 100);
+  } else if (!pronto) {
+    etichetta.textContent = 'Mancano dei campi';
+    delta.textContent = '';
+  } else {
+    etichetta.textContent = 'Tutto quadra';
+    etichetta.className = 'ok';
+    delta.textContent = euro(totale / 100);
+    delta.className = 'ok';
+  }
+
+  el('salva').disabled = !pronto;
+
+  if (ris.destinatario && ris.destinatario !== DATI.socioArrotondamento && ris.resto > 0) {
+    messaggio('avviso', DATI.socioArrotondamento +
+      ' non partecipa a questa spesa: il resto va a ' + mappa[ris.destinatario] + '.');
+  } else {
+    nascondiMessaggio();
+  }
+}
+
+function messaggio(tipo, testo) {
+  var m = el('messaggio');
+  m.className = 'messaggio ' + tipo;
+  m.textContent = testo;
+}
+function nascondiMessaggio() {
+  el('messaggio').className = 'messaggio';
+  el('messaggio').textContent = '';
+}
+
+/* ---------- salvataggio ---------- */
+
+function salva() {
+  el('salva').disabled = true;
+  el('salva').textContent = 'Salvo...';
+
+  var manuali = {};
+  document.querySelectorAll('.manuale').forEach(function (i) {
+    manuali[i.dataset.socio] = i.value;
+  });
+
+  var payload = {
+    id: ID_SPESA || null,
+    data: el('data').value,
+    descrizione: el('descrizione').value,
+    importo: Number(el('importo').value),
+    criterio: criterioAttivo(),
+    note: el('note').value,
+    partecipanti: selezionati(),
+    manuali: manuali,
+    pagamenti: pagamenti.map(function (p) {
+      return { pagante: p.pagante, importo: Number(p.importo) };
+    })
+  };
+
+  google.script.run
+    .withSuccessHandler(function (r) {
+      el('salva').textContent = 'Salva spesa';
+      var testo;
+      if (r.modifica) {
+        testo = 'Spesa ' + r.id + ' aggiornata.';
+      } else {
+        testo = 'Spesa ' + r.id + ' registrata. Ne puoi inserire un\'altra.';
+        el('descrizione').value = '';
+        el('importo').value = '';
+        el('note').value = '';
+        document.querySelectorAll('.manuale').forEach(function (i) { i.value = ''; });
+        pagamenti = [{ pagante: '', importo: '' }];
+        disegnaPagamenti();
+      }
+      if (r.avvisi && r.avvisi.length) testo += ' ' + r.avvisi.join(' ');
+      // aggiorna() ripulisce i messaggi: va chiamata prima, non dopo.
+      aggiorna();
+      messaggio('fatto', testo);
+    })
+    .withFailureHandler(function (e) {
+      el('salva').textContent = 'Salva spesa';
+      el('salva').disabled = false;
+      messaggio('errore', e.message || String(e));
+    })
+    .salvaSpesa(payload);
+}
+
+/* ---------- avvio ---------- */
+
+google.script.run
+  .withSuccessHandler(function (d) { DATI = d; costruisci(); })
+  .withFailureHandler(function (e) {
+    el('caricamento').textContent = 'Non riesco a leggere l\'anagrafica: ' +
+      (e.message || e) + '. Lancia "Ricostruisci struttura" dal menu Spese aereo.';
+  })
+  .getDatiIniziali(ID_SPESA);
+</script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  :root {
+    --inchiostro: #1c2024;
+    --attenuato: #626d78;
+    --riga: #dde1e6;
+    --azione: #2f5d7c;
+    --azione-scura: #244a63;
+    --credito: #1b5e20;
+    --debito: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 18px 92px 18px;
+    font-family: Roboto, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px; line-height: 1.45; color: var(--inchiostro);
+  }
+  h2 { font-size: 14px; font-weight: 500; margin: 0 0 8px 0; }
+  h2 + p { margin: 0 0 10px 0; color: var(--attenuato); }
+  section { border-top: 1px solid var(--riga); padding: 14px 0 4px 0; }
+  section:first-of-type { border-top: 0; padding-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th {
+    text-align: left; font-weight: 500; color: var(--attenuato);
+    border-bottom: 1px solid var(--riga); padding: 0 6px 4px 0;
+  }
+  td { padding: 4px 6px 4px 0; border-bottom: 1px solid #f0f2f4; }
+  td.num, th.num { text-align: right; padding-right: 0; }
+  .credito { color: var(--credito); }
+  .debito  { color: var(--debito); }
+  .verso { color: var(--attenuato); padding: 0 6px; }
+  .vuoto { color: var(--attenuato); padding: 10px 0; }
+
+  .allarme {
+    background: #fbe9e7; color: var(--debito);
+    padding: 9px 11px; border-radius: 3px; margin-bottom: 12px;
+  }
+  .esito {
+    background: #e8f5e9; color: var(--credito);
+    padding: 9px 11px; border-radius: 3px; margin-bottom: 12px; display: none;
+  }
+  .errore {
+    background: #fbe9e7; color: var(--debito);
+    padding: 9px 11px; border-radius: 3px; margin-bottom: 12px; display: none;
+  }
+
+  .piede {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 12px 18px 16px 18px; background: #fff;
+    border-top: 1px solid var(--riga);
+    display: flex; gap: 8px; align-items: center;
+  }
+  input[type=text] {
+    flex: 1; padding: 7px 8px; border: 1px solid var(--riga);
+    border-radius: 3px; background: #f6f7f9; font: inherit;
+  }
+  button {
+    font: inherit; padding: 8px 14px; border: 0; border-radius: 3px;
+    background: var(--azione); color: #fff; font-weight: 500; cursor: pointer;
+  }
+  button:hover { background: var(--azione-scura); }
+  button:disabled { background: #b6bfc7; cursor: not-allowed; }
+  button.chiudi { background: #fff; color: var(--inchiostro); border: 1px solid var(--riga); }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--azione); outline-offset: 1px; }
+</style>
+</head>
+<body>
+
+<? var d = dati; ?>
+
+<div id="esito" class="esito"></div>
+<div id="errore" class="errore"></div>
+
+<? if (Math.abs(d.sbilancio) > 0.004) { ?>
+  <div class="allarme">
+    I saldi non sono in pari: sbilancio di <?= d.sbilancio.toFixed(2) ?>.
+    Apri il foglio Controlli e sistema le spese che non pareggiano, poi rilancia
+    il conguaglio.
+  </div>
+<? } ?>
+
+<section>
+  <h2>Saldi correnti</h2>
+  <p>Positivo significa a credito verso il gruppo.</p>
+  <table>
+    <tr><th>soggetto</th><th class="num">saldo</th></tr>
+    <? for (var i = 0; i < d.righe.length; i++) { var r = d.righe[i]; ?>
+      <tr>
+        <td><?= r.nome ?></td>
+        <td class="num <?= r.saldo > 0 ? 'credito' : (r.saldo < 0 ? 'debito' : '') ?>">
+          <?= r.saldo.toFixed(2) ?>
+        </td>
+      </tr>
+    <? } ?>
+  </table>
+</section>
+
+<section>
+  <h2>Bonifici proposti</h2>
+  <? if (d.bonifici.length) { ?>
+    <p><?= d.bonifici.length ?> movimenti per un totale di <?= d.totale.toFixed(2) ?>.</p>
+    <table>
+      <tr><th>da</th><th></th><th>a</th><th class="num">importo</th></tr>
+      <? for (var j = 0; j < d.bonifici.length; j++) { var b = d.bonifici[j]; ?>
+        <tr>
+          <td><?= b.daNome ?></td>
+          <td class="verso">paga</td>
+          <td><?= b.aNome ?></td>
+          <td class="num"><?= b.importo.toFixed(2) ?></td>
+        </tr>
+      <? } ?>
+    </table>
+  <? } else { ?>
+    <p class="vuoto">Niente da conguagliare: i saldi sono gia' a zero.</p>
+  <? } ?>
+</section>
+
+<div class="piede">
+  <input type="text" id="causale" value="Conguaglio" aria-label="Causale dei giroconti">
+  <button id="inserisci" <?= d.bonifici.length ? '' : 'disabled' ?>>Inserisci in Giroconti</button>
+  <button class="chiudi" id="chiudi">Chiudi</button>
+</div>
+
+<script>
+document.getElementById('chiudi').addEventListener('click', function () {
+  google.script.host.close();
+});
+
+document.getElementById('inserisci').addEventListener('click', function () {
+  var b = this;
+  b.disabled = true;
+  b.textContent = 'Inserisco...';
+  google.script.run
+    .withSuccessHandler(function (r) {
+      b.textContent = 'Inserito';
+      var e = document.getElementById('esito');
+      e.style.display = 'block';
+      e.textContent = r.inseriti + ' giroconti inseriti, totale ' +
+        r.totale.toFixed(2) + '. Chiudi e controlla il foglio Giroconti.';
+    })
+    .withFailureHandler(function (err) {
+      b.disabled = false;
+      b.textContent = 'Inserisci in Giroconti';
+      var e = document.getElementById('errore');
+      e.style.display = 'block';
+      e.textContent = err.message || String(err);
+    })
+    .inserisciConguaglioInGiroconti(document.getElementById('causale').value);
+});
+</script>
+</body>
+</html>
