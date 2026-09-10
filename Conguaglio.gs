@@ -13,7 +13,7 @@
 
 function mostraConguaglio() {
   var dati = calcolaConguaglio_();
-  var t = HtmlService.createTemplateFromFile('Conguaglio');
+  var t = HtmlService.createTemplateFromFile('Conguaglio-page');
   t.dati = dati;
   SpreadsheetApp.getUi().showModalDialog(
     t.evaluate().setWidth(520).setHeight(520), 'Conguaglio');

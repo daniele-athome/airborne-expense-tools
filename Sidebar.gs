@@ -20,7 +20,7 @@ function apriSidebarModifica() {
 }
 
 function mostraSidebar_(idSpesa) {
-  var t = HtmlService.createTemplateFromFile('Sidebar');
+  var t = HtmlService.createTemplateFromFile('Sidebar-page');
   t.idSpesa = idSpesa || '';
   var html = t.evaluate()
     .setTitle(idSpesa ? 'Modifica spesa ' + idSpesa : 'Nuova spesa')
