@@ -235,6 +235,19 @@ lancia menu → Compatta Quote e Pagamenti. Le righe vengono riportate sotto
 l'intestazione senza perdere nulla; i saldi non cambiano, perché sommano per
 `id_spesa` e non dipendono dalla posizione.
 
+**Non cancellare la riga 2 di `Quote` e `Pagamenti`.** L'`ARRAYFORMULA` della
+colonna `valida` vive in D2: cancellare quella riga se la porta via senza
+lasciare traccia — nessun `#REF!`, solo una colonna vuota che sembra sempre
+essere stata così. Da quel momento la spesa esce interamente dai saldi, e in
+modo simmetrico: quote e pagamenti spariscono insieme, quindi `Sbilancio`
+resta a zero e i controlli di pareggio restano verdi. Per rimuovere una riga
+figlia usa la modifica della spesa dalla sidebar, che le riscrive tutte.
+
+Due controlli sorvegliano questo caso: uno verifica che la formula sia al suo
+posto, l'altro che per ogni spesa attiva il numero di righe figlie valide
+coincida col numero di righe figlie. Il rimedio è menu → Ripristina colonne
+calcolate, che riscrive le due formule senza toccare i dati.
+
 **Modifiche manuali alle colonne calcolate.** Le colonne `valida` e i fogli
 `Saldi` e `Controlli` sono protetti con solo avviso: Google chiede conferma ma
 non blocca. Se qualcuno le sovrascrive, `ripristinaColonneCalcolate()` (o un

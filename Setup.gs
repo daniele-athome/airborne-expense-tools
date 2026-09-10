@@ -23,6 +23,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Calcola conguaglio...', 'mostraConguaglio')
     .addItem('Verifica integrita', 'verificaIntegrita')
+    .addItem('Ripristina colonne calcolate', 'ripristinaColonneCalcolate')
     .addItem('Compatta Quote e Pagamenti', 'compattaTabelle')
     .addSeparator()
     .addItem('Ricostruisci struttura', 'setup')
@@ -369,6 +370,26 @@ function costruisciControlli_(ss) {
       G = FOGLI.GIROCONTI, A = FOGLI.ANAGRAFICA, SA = FOGLI.SALDI;
 
   var controlli = [
+    // Sentinella sulla causa. La formula vive in D2: cancellare la riga 2 se
+    // la porta via senza lasciare traccia, e una colonna `valida` vuota
+    // esclude dai saldi quote e pagamenti insieme, in modo simmetrico. Tutti
+    // gli altri controlli restano verdi. Si ripara dal menu, con Ripristina
+    // colonne calcolate.
+    ['Formula della colonna valida assente o in errore in Quote o Pagamenti',
+     '=IF(ISFORMULA(' + Q + '!$D$2),0,1)+IF(ISERROR(' + Q + '!$D$2),1,0)' +
+     '+IF(ISFORMULA(' + P + '!$D$2),0,1)+IF(ISERROR(' + P + '!$D$2),1,0)'],
+
+    // Sentinella sull'effetto. Per una spesa attiva, il numero di righe
+    // figlie valide deve coincidere col numero di righe figlie: `valida` e'
+    // 1 o 0, quindi SUMIF sulla colonna conta le valide e COUNTIF le conta
+    // tutte. Se non coincidono, quella spesa e' fuori dai saldi in tutto o
+    // in parte pur risultando attiva.
+    ['Spese attive con quote o pagamenti esclusi dai saldi',
+     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(((' +
+     'SUMIF(' + Q + '!$A$2:$A,' + S + '!$A$2:$A,' + Q + '!$D$2:$D)<>' +
+     'COUNTIF(' + Q + '!$A$2:$A,' + S + '!$A$2:$A))+(' +
+     'SUMIF(' + P + '!$A$2:$A,' + S + '!$A$2:$A,' + P + '!$D$2:$D)<>' +
+     'COUNTIF(' + P + '!$A$2:$A,' + S + '!$A$2:$A)))>0))'],
     ['Spese attive in cui la somma delle quote non pareggia l\'importo',
      '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(' +
      'ROUND(SUMIF(' + Q + '!$A$2:$A,' + S + '!$A$2:$A,' + Q + '!$C$2:$C),2)<>' +
