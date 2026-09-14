@@ -20,7 +20,7 @@ var FOGLI = {
 /** Intestazioni delle tabelle di dati. L'ordine definisce le colonne. */
 var INTESTAZIONI = {
   ANAGRAFICA: ['id_socio', 'nome', 'attivo', 'iban', 'email'],
-  SPESE:      ['id_spesa', 'data', 'descrizione', 'importo', 'criterio', 'stato', 'note'],
+  SPESE:      ['id_spesa', 'data', 'tipo', 'descrizione', 'importo', 'criterio', 'stato', 'note'],
   QUOTE:      ['id_spesa', 'socio', 'importo_dovuto', 'valida'],
   PAGAMENTI:  ['id_spesa', 'pagante', 'importo_pagato', 'valida'],
   GIROCONTI:  ['data', 'da', 'a', 'importo', 'causale'],
@@ -30,7 +30,8 @@ var INTESTAZIONI = {
 /** Indici di colonna 1-based, per non contare le lettere a mano. */
 var COL = {
   ANAGRAFICA: { ID: 1, NOME: 2, ATTIVO: 3, IBAN: 4, EMAIL: 5 },
-  SPESE:      { ID: 1, DATA: 2, DESCRIZIONE: 3, IMPORTO: 4, CRITERIO: 5, STATO: 6, NOTE: 7 },
+  SPESE:      { ID: 1, DATA: 2, TIPO: 3, DESCRIZIONE: 4, IMPORTO: 5,
+                CRITERIO: 6, STATO: 7, NOTE: 8 },
   QUOTE:      { ID: 1, SOCIO: 2, IMPORTO: 3, VALIDA: 4 },
   PAGAMENTI:  { ID: 1, PAGANTE: 2, IMPORTO: 3, VALIDA: 4 },
   GIROCONTI:  { DATA: 1, DA: 2, A: 3, IMPORTO: 4, CAUSALE: 5 }
@@ -51,6 +52,17 @@ var META_DEFAULT = [
 ];
 
 var CRITERI = ['UGUALE_TUTTI', 'UGUALE_SELEZIONE', 'MANUALE'];
+
+/**
+ * Natura del movimento. Determina il segno con cui importo, quote e pagamenti
+ * sono memorizzati: positivo per SPESA, negativo per ENTRATA.
+ *
+ * Il segno resta un dettaglio interno: nella sidebar si digita sempre un
+ * importo positivo e si sceglie il tipo. In lettura, `tipo` dice a colpo
+ * d'occhio cosa si sta guardando, e un controllo verifica che tipo e segno
+ * concordino.
+ */
+var TIPI = ['SPESA', 'ENTRATA'];
 
 var STATI = ['OK', 'ANNULLATA'];
 

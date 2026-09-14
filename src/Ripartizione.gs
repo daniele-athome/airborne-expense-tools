@@ -10,11 +10,18 @@
  *
  * Regola di arrotondamento (UGUALE_TUTTI e UGUALE_SELEZIONE):
  *   - la quota base e' l'importo diviso per il numero di partecipanti,
- *     troncato all'euro intero inferiore;
+ *     troncato all'euro intero VERSO LO ZERO;
  *   - tutto il resto, decimali compresi, va al socio indicato dalla chiave
  *     socio_arrotondamento in Metadati.
  *
  *   Esempio: 100,50 tra tre soci -> 33 / 33 / 34,50.
+ *
+ * Il troncamento e' verso lo zero, non verso il basso, perche' gli importi
+ * possono essere negativi (le ENTRATE). La proprieta' da preservare e'
+ * quote(-X) = -quote(X): una nota di credito che rimborsa l'intero importo di
+ * una spesa deve azzerare esattamente le quote di quella spesa. Con Math.floor
+ * su un negativo, -100 tra tre darebbe -34/-34/-32 invece di -34/-33/-33, e il
+ * rimborso integrale lascerebbe residui su tutti.
  *
  * Se il socio configurato non partecipa alla spesa (caso possibile con
  * UGUALE_SELEZIONE), il resto va al primo partecipante in ordine di
@@ -45,8 +52,8 @@ function calcolaQuote_(importo, criterio, partecipanti, manuali, socioArrotondam
   var avvisi = [];
   var totale = inCentesimi_(importo);
 
-  if (totale <= 0) {
-    throw new Error('L\'importo della spesa deve essere maggiore di zero.');
+  if (totale === 0) {
+    throw new Error('L\'importo non puo\' essere zero.');
   }
   if (!partecipanti || !partecipanti.length) {
     throw new Error('Seleziona almeno un partecipante.');
@@ -68,9 +75,12 @@ function calcolaQuote_(importo, criterio, partecipanti, manuali, socioArrotondam
   }
 
   var n = partecipanti.length;
-  // Quota base in euro interi, espressa in centesimi.
-  var base = Math.floor(totale / n / 100) * 100;
-  var resto = totale - base * n;
+  // Si calcola sul valore assoluto e si riapplica il segno alla fine: cosi'
+  // il troncamento e' sempre verso lo zero e vale quote(-X) = -quote(X).
+  var segno = totale < 0 ? -1 : 1;
+  var assoluto = Math.abs(totale);
+  var base = Math.floor(assoluto / n / 100) * 100;   // quota base in centesimi
+  var resto = assoluto - base * n;
 
   var destinatario = socioArrotondamento;
   if (partecipanti.indexOf(destinatario) === -1) {
@@ -83,7 +93,7 @@ function calcolaQuote_(importo, criterio, partecipanti, manuali, socioArrotondam
   }
 
   var quote = partecipanti.map(function (socio) {
-    var c = base + (socio === destinatario ? resto : 0);
+    var c = segno * (base + (socio === destinatario ? resto : 0));
     return { socio: socio, importo: inEuro_(c) };
   });
 
@@ -103,7 +113,9 @@ function quoteManuali_(totaleCent, partecipanti, manuali) {
       throw new Error('Manca l\'importo di ' + socio + '.');
     }
     var c = inCentesimi_(grezzo);
-    if (c < 0) throw new Error('La quota di ' + socio + ' non puo\' essere negativa.');
+    if (c !== 0 && (c > 0) !== (totaleCent > 0)) {
+      throw new Error('La quota di ' + socio + ' ha segno opposto all\'importo.');
+    }
     somma += c;
     return { socio: socio, importo: inEuro_(c) };
   });
@@ -116,7 +128,11 @@ function quoteManuali_(totaleCent, partecipanti, manuali) {
 }
 
 /**
- * Verifica che i pagamenti pareggino il totale della spesa.
+ * Verifica che i pagamenti pareggino il totale del movimento.
+ *
+ * Per una ENTRATA gli importi sono negativi come il totale: chi "paga" e' chi
+ * ha incassato, e il segno negativo esprime che tiene in mano denaro del
+ * gruppo invece di averlo anticipato.
  * @param {number} importo
  * @param {Array<{pagante: string, importo: number}>} pagamenti
  * @return {Array<{pagante: string, importo: number}>} normalizzati
@@ -136,7 +152,10 @@ function validaPagamenti_(importo, pagamenti) {
     }
     visti[p.pagante] = true;
     var c = inCentesimi_(p.importo);
-    if (c <= 0) throw new Error('Il pagamento di ' + p.pagante + ' deve essere positivo.');
+    if (c === 0) throw new Error('Il movimento di ' + p.pagante + ' non puo\' essere zero.');
+    if ((c > 0) !== (totale > 0)) {
+      throw new Error('Il movimento di ' + p.pagante + ' ha segno opposto all\'importo.');
+    }
     somma += c;
     return { pagante: p.pagante, importo: inEuro_(c) };
   });

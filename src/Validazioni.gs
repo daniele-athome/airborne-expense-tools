@@ -163,12 +163,6 @@ function testRipartizione() {
     errori.push('manuale sbilanciato: doveva fallire');
   } catch (e) { /* atteso */ }
 
-  // Importo non positivo: deve fallire.
-  try {
-    calcolaQuote_(0, 'UGUALE_TUTTI', ['Socio1'], {}, 'Socio1');
-    errori.push('importo zero: doveva fallire');
-  } catch (e) { /* atteso */ }
-
   // Pagamenti che non pareggiano: deve fallire.
   try {
     validaPagamenti_(100, [{ pagante: 'Socio1', importo: 90 }]);
@@ -181,6 +175,54 @@ function testRipartizione() {
     { pagante: 'Socio2', importo: 40.5 }
   ]);
   verifica('pagamenti multipli', [60, 40.5], p.map(function (x) { return x.importo; }));
+
+  /* --- ENTRATE: importi negativi --- */
+
+  var tre = ['Socio1', 'Socio2', 'Socio3'];
+
+  // Troncamento verso lo zero, non verso il basso.
+  verifica('-100 tra 3', [-34, -33, -33],
+    importi(calcolaQuote_(-100, 'UGUALE_TUTTI', tre, {}, 'Socio1')));
+
+  verifica('-100,50 tra 3', [-34.5, -33, -33],
+    importi(calcolaQuote_(-100.50, 'UGUALE_TUTTI', tre, {}, 'Socio1')));
+
+  // La proprieta' che giustifica il troncamento verso lo zero:
+  // un rimborso integrale deve annullare esattamente la spesa originaria.
+  [100, 100.50, 2, 1234.56, 7, 999.99].forEach(function (v) {
+    var pos = importi(calcolaQuote_(v, 'UGUALE_TUTTI', tre, {}, 'Socio1'));
+    var neg = importi(calcolaQuote_(-v, 'UGUALE_TUTTI', tre, {}, 'Socio1'));
+    var somme = pos.map(function (x, i) { return Math.round((x + neg[i]) * 100) / 100; });
+    verifica('rimborso integrale di ' + v + ' azzera le quote', [0, 0, 0], somme);
+  });
+
+  // Entrata manuale che pareggia.
+  verifica('entrata manuale', [-60, -40.5],
+    importi(calcolaQuote_(-100.50, 'MANUALE', ['Socio1', 'Socio2'],
+      { Socio1: -60, Socio2: -40.5 }, 'Socio1')));
+
+  // Quota con segno opposto all'importo: deve fallire.
+  try {
+    calcolaQuote_(-100, 'MANUALE', ['Socio1', 'Socio2'],
+      { Socio1: -150, Socio2: 50 }, 'Socio1');
+    errori.push('quota di segno opposto: doveva fallire');
+  } catch (e) { /* atteso */ }
+
+  // Importo zero: deve fallire.
+  try {
+    calcolaQuote_(0, 'UGUALE_TUTTI', tre, {}, 'Socio1');
+    errori.push('importo zero: doveva fallire');
+  } catch (e) { /* atteso */ }
+
+  // Incasso da un solo socio su un'entrata.
+  var e1 = validaPagamenti_(-300, [{ pagante: 'Socio2', importo: -300 }]);
+  verifica('incasso singolo', [-300], e1.map(function (x) { return x.importo; }));
+
+  // Pagamento di segno opposto: deve fallire.
+  try {
+    validaPagamenti_(-300, [{ pagante: 'Socio2', importo: 300 }]);
+    errori.push('pagamento di segno opposto: doveva fallire');
+  } catch (e) { /* atteso */ }
 
   var esito = errori.length
     ? errori.length + ' test falliti:\n\n' + errori.join('\n\n')

@@ -105,6 +105,7 @@ function leggiSpesa_(id) {
   return {
     id: Number(v[COL.SPESE.ID - 1]),
     data: formattaData_(v[COL.SPESE.DATA - 1]),
+    tipo: String(v[COL.SPESE.TIPO - 1]) || 'SPESA',
     descrizione: String(v[COL.SPESE.DESCRIZIONE - 1]),
     importo: Number(v[COL.SPESE.IMPORTO - 1]),
     criterio: String(v[COL.SPESE.CRITERIO - 1]),

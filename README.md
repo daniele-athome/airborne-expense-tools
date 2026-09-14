@@ -134,6 +134,45 @@ Se il socio uscente era quello indicato in `socio_arrotondamento`, aggiorna la
 chiave in `Metadati`, altrimenti il resto delle divisioni finirà al primo
 partecipante di ogni spesa con un avviso giallo nella sidebar.
 
+## Entrate
+
+Un rimborso in garanzia, un noleggio a terzi, la rivendita di una parte: sono
+movimenti in cui il denaro entra, e si registrano dalla stessa sidebar
+scegliendo `ENTRATA` invece di `SPESA`.
+
+Digiti sempre un importo positivo. Il segno lo mette lo script: internamente
+importo, quote e pagamenti di un'entrata sono negativi, ed è questo che permette
+alle entrate di usare la stessa aritmetica delle spese senza casi speciali. La
+colonna `tipo` in `Spese` ti dice cosa stai guardando senza doverti accorgere di
+un meno, e un controllo verifica che tipo e segno concordino.
+
+**Chi incassa è il "pagante".** Nel caso tipico un solo socio riceve il bonifico
+— quello che ha seguito la pratica. Lo indichi come incassante, e le quote si
+ripartiscono normalmente fra tutti. Il risultato è che lui va a debito verso il
+gruppo: tiene in mano denaro che non è tutto suo.
+
+    Rimborso 300, quote 100 a testa, incassato da Socio2
+    Socio1 +100   Socio2 -200   Socio3 +100   cassa invariata
+
+Il denaro risulta dov'è davvero, cioè sul conto di Socio2. Se poi lo versa nel
+fondo comune, quello è un giroconto `Socio2 → CASSA` che corrisponde a un
+bonifico vero e lo riporta a +100.
+
+**Non registrare giroconti verso `CASSA` per denaro che non è ancora arrivato in
+cassa.** È la tentazione naturale quando un socio incassa per conto di tutti, e
+falsifica la giacenza: il foglio crede che il fondo abbia capienza quando i soldi
+sono sul conto di qualcun altro.
+
+### Perché il troncamento è verso lo zero
+
+Le quote si arrotondano troncando all'intero **verso lo zero**, non verso il
+basso. Serve a garantire `quote(-X) = -quote(X)`, cioè che un rimborso integrale
+annulli esattamente la spesa che rimborsa.
+
+Con `Math.floor`, 100 fra tre dà 34/33/33 ma −100 darebbe −34/−34/−32: rimborsata
+l'intera spesa, Socio1 resterebbe a +2 e gli altri a −1. È la proprietà
+verificata da `testRipartizione()`, su più importi.
+
 ## Come è fatto
 
 Tre concetti tenuti separati: quanto costa (`Spese`), chi lo deve (`Quote`),

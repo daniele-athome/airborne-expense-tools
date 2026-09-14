@@ -63,6 +63,7 @@ function getDatiIniziali(idSpesa) {
 
   var out = {
     criteri: CRITERI,
+    tipi: TIPI,
     socioArrotondamento: cfg.socioArrotondamento,
     nomeCassa: cfg.nomeCassa,
     oggi: formattaData_(new Date()),
@@ -121,7 +122,7 @@ function salvaSpesa(payload) {
       return [id, x.pagante, x.importo];
     }));
 
-    var testata = [id, parsaData_(p.data), p.descrizione, p.importo,
+    var testata = [id, parsaData_(p.data), p.tipo, p.descrizione, p.importo,
                    p.criterio, 'OK', p.note];
 
     if (modifica) {
@@ -217,10 +218,19 @@ function normalizzaPayload_(payload, cfg) {
   var attivi = insiemeSoci_(true);
   var ordine = leggiSoci_(true).map(function (s) { return s.id; });
 
-  var importo = Number(payload.importo);
-  if (!isFinite(importo) || importo <= 0) {
+  var tipo = String(payload.tipo || 'SPESA');
+  if (TIPI.indexOf(tipo) === -1) throw new Error('Tipo non valido: ' + tipo);
+
+  // Dalla sidebar l'importo arriva sempre positivo: il segno lo determina il
+  // tipo. Memorizzare le ENTRATE in negativo e' cio' che permette a quote e
+  // pagamenti di usare la stessa aritmetica delle spese, e a un rimborso
+  // integrale di annullare esattamente la spesa che rimborsa.
+  var digitato = Number(payload.importo);
+  if (!isFinite(digitato) || digitato <= 0) {
     throw new Error('Inserisci un importo maggiore di zero.');
   }
+  var segno = (tipo === 'ENTRATA') ? -1 : 1;
+  var importo = segno * digitato;
 
   var descrizione = String(payload.descrizione || '').trim();
   if (!descrizione) throw new Error('Inserisci una descrizione.');
@@ -240,7 +250,7 @@ function normalizzaPayload_(payload, cfg) {
   partecipanti.forEach(function (s) {
     if (!attivi[s]) throw new Error('Socio inesistente o non attivo: ' + s);
     if (s === cfg.nomeCassa) {
-      throw new Error('La cassa non puo\' avere quote a suo carico: puo\' solo pagare.');
+      throw new Error('La cassa non puo\' avere quote a suo carico: puo\' solo pagare o incassare.');
     }
   });
   // Riordino secondo Anagrafica.
@@ -253,18 +263,26 @@ function normalizzaPayload_(payload, cfg) {
       if (!attivi[p.pagante]) {
         throw new Error('Pagante inesistente o non attivo: ' + p.pagante);
       }
-      return { pagante: String(p.pagante), importo: Number(p.importo) };
+      return { pagante: String(p.pagante), importo: segno * Number(p.importo) };
     });
+
+  var manuali = {};
+  var grezzi = payload.manuali || {};
+  for (var k in grezzi) {
+    if (grezzi[k] === '' || grezzi[k] === null || grezzi[k] === undefined) continue;
+    manuali[k] = segno * Number(grezzi[k]);
+  }
 
   return {
     id: payload.id ? Number(payload.id) : null,
     data: payload.data,
+    tipo: tipo,
     descrizione: descrizione,
     importo: importo,
     criterio: criterio,
     note: String(payload.note || '').trim(),
     partecipanti: partecipanti,
-    manuali: payload.manuali || {},
+    manuali: manuali,
     pagamenti: pagamenti
   };
 }

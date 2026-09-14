@@ -8,19 +8,24 @@
  *
  * I fogli interamente derivati (Saldi, Controlli) vengono rigenerati da zero.
  *
- * NOTA SUL SEPARATORE DELLE FORMULE
+ * SEPARATORE DELLE FORMULE
  * Google Sheets non normalizza le formule scritte via script: vanno espresse
  * nella notazione del locale del foglio. Nei locali che usano la virgola come
- * separatore decimale (it_IT e molti altri) il separatore di argomenti e' il
- * punto e virgola, non la virgola.
+ * separatore decimale (it_IT fra questi) il separatore di argomenti e' il
+ * punto e virgola.
  *
- * Per non dipendere dal locale, tutte le formule qui dentro usano il
- * segnaposto ~ al posto del separatore di argomenti, e passano da f_() prima
- * di essere scritte. Il separatore giusto non viene dedotto da una tabella di
- * locali ma chiesto a Sheets stesso, con una formula sonda.
+ * Tutte le formule qui dentro usano il segnaposto ~ al posto del separatore e
+ * passano da f_() prima di essere scritte. Il separatore non viene dedotto da
+ * una tabella di locali ma chiesto a Sheets, con una formula sonda.
  *
  * Per lo stesso motivo qui non si usano array letterali {a,b,c}: anche il loro
  * separatore di colonna cambia col locale.
+ *
+ * RIFERIMENTI DI COLONNA
+ * Le formule non contengono lettere di colonna scritte a mano: si ricavano da
+ * COL con colonna_(). Aggiungere una colonna a una tabella e' successo una
+ * volta (tipo in Spese) e ha toccato una dozzina di formule sparse; cosi' ne
+ * tocca zero.
  */
 
 /* ------------------------------------------------------------------ */
@@ -65,15 +70,41 @@ function f_(formula) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Riferimenti di colonna                                              */
+/* ------------------------------------------------------------------ */
+
+/** Indice di colonna 1-based -> lettera A1 (1 -> A, 27 -> AA). */
+function lettera_(n) {
+  var s = '';
+  while (n > 0) {
+    var m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = (n - m - 1) / 26;
+  }
+  return s;
+}
+
+/** Riferimento assoluto alla colonna dati di un foglio: Spese!$E$2:$E */
+function colonna_(foglio, indice) {
+  var L = lettera_(indice);
+  return foglio + '!$' + L + '$2:$' + L;
+}
+
+/** Riferimento assoluto a una cella: Quote!$D$2 */
+function cella_(foglio, indice, riga) {
+  return foglio + '!$' + lettera_(indice) + '$' + riga;
+}
+
+/* ------------------------------------------------------------------ */
 /* Menu                                                                */
 /* ------------------------------------------------------------------ */
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Spese aereo')
-    .addItem('Nuova spesa...', 'apriSidebarNuova')
-    .addItem('Modifica spesa selezionata...', 'apriSidebarModifica')
-    .addItem('Annulla spesa selezionata', 'annullaSpesaSelezionata')
+    .addItem('Nuovo movimento...', 'apriSidebarNuova')
+    .addItem('Modifica movimento selezionato...', 'apriSidebarModifica')
+    .addItem('Annulla movimento selezionato', 'annullaSpesaSelezionata')
     .addSeparator()
     .addItem('Calcola conguaglio...', 'mostraConguaglio')
     .addItem('Verifica integrita', 'verificaIntegrita')
@@ -113,10 +144,6 @@ function setup() {
 /* Helper generici                                                     */
 /* ------------------------------------------------------------------ */
 
-/**
- * Restituisce il foglio, creandolo se manca. Se esiste, il contenuto resta.
- * Le intestazioni vengono comunque riscritte e formattate.
- */
 function assicuraFoglio_(ss, nome, intestazioni) {
   var sh = ss.getSheetByName(nome);
   if (!sh) sh = ss.insertSheet(nome);
@@ -130,12 +157,10 @@ function assicuraFoglio_(ss, nome, intestazioni) {
   return sh;
 }
 
-/** Rimuove tutte le convalide dati da una colonna, per non accumularle. */
 function pulisciConvalide_(sh, colonna) {
   sh.getRange(2, colonna, Math.max(sh.getMaxRows() - 1, 1), 1).clearDataValidations();
 }
 
-/** Convalida: il valore deve essere un id_socio esistente in Anagrafica. */
 function convalidaSocio_(ss, sh, colonna) {
   pulisciConvalide_(sh, colonna);
   var soci = ss.getSheetByName(FOGLI.ANAGRAFICA).getRange('A2:A');
@@ -147,7 +172,6 @@ function convalidaSocio_(ss, sh, colonna) {
   sh.getRange(2, colonna, Math.max(sh.getMaxRows() - 1, 1), 1).setDataValidation(regola);
 }
 
-/** Convalida: il valore deve stare in una lista chiusa. */
 function convalidaLista_(sh, colonna, valori, aiuto) {
   pulisciConvalide_(sh, colonna);
   var regola = SpreadsheetApp.newDataValidation()
@@ -164,7 +188,6 @@ function riferimentoMeta_(chiave) {
          FOGLI.METADATI + '!$A:$A~0))';
 }
 
-/** Protezione con solo avviso: non blocca, ma segnala una modifica manuale. */
 function proteggiConAvviso_(range, descrizione) {
   var esistenti = range.getSheet().getProtections(SpreadsheetApp.ProtectionType.RANGE);
   for (var i = 0; i < esistenti.length; i++) {
@@ -177,11 +200,6 @@ function proteggiConAvviso_(range, descrizione) {
 /* Metadati                                                            */
 /* ------------------------------------------------------------------ */
 
-/**
- * Il foglio Metadati puo' gia' esistere e contenere chiavi estranee a questo
- * progetto. Aggiungiamo in coda solo le chiavi mancanti, senza toccare nulla
- * di preesistente (intestazione compresa).
- */
 function costruisciMetadati_(ss) {
   var sh = ss.getSheetByName(FOGLI.METADATI);
   if (!sh) {
@@ -207,8 +225,6 @@ function costruisciMetadati_(ss) {
     var riga = sh.getLastRow() + 1;
     sh.getRange(riga, 1).setValue(chiave);
     if (chiave === META.DATA_MIN) {
-      // data_min va scritta come data vera: i controlli la confrontano
-      // numericamente con le date di Spese e Giroconti.
       var parti = String(valore).split('-');
       sh.getRange(riga, 2)
         .setValue(new Date(Number(parti[0]), Number(parti[1]) - 1, Number(parti[2])))
@@ -250,20 +266,70 @@ function costruisciAnagrafica_(ss) {
 /* Spese                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Inserisce la colonna `tipo` in un foglio Spese che non ce l'ha, e marca
+ * tutto lo storico come SPESA.
+ *
+ * Si usa insertColumnBefore, che sposta i dati a destra senza perderli e fa
+ * riadattare a Sheets i riferimenti nelle formule esistenti. Deve girare
+ * PRIMA che assicuraFoglio_ riscriva le intestazioni, altrimenti il segnale
+ * che distingue lo schema vecchio da quello nuovo sparisce.
+ */
+function migraSpeseTipo_(ss) {
+  var sh = ss.getSheetByName(FOGLI.SPESE);
+  if (!sh) return;                                  // sara' creato gia' nuovo
+
+  var larghezza = Math.max(sh.getLastColumn(), 1);
+  var intestazioni = sh.getRange(1, 1, 1, larghezza).getValues()[0]
+    .map(function (v) { return String(v).trim(); });
+
+  if (intestazioni.indexOf('tipo') !== -1) return;        // gia' migrato
+  if (intestazioni.indexOf('id_spesa') === -1) return;    // foglio ancora vuoto
+
+  sh.insertColumnBefore(COL.SPESE.TIPO);
+  sh.getRange(1, COL.SPESE.TIPO).setValue('tipo');
+
+  var ultima = ultimaRigaDati_(sh, COL.SPESE.ID);
+  if (ultima >= 2) {
+    var n = ultima - 1;
+    var valori = [];
+    for (var i = 0; i < n; i++) valori.push(['SPESA']);
+    sh.getRange(2, COL.SPESE.TIPO, n, 1).setValues(valori);
+    scriviLog_('MIGRAZIONE', '',
+      'colonna tipo aggiunta a Spese, ' + n + ' righe storiche marcate SPESA');
+  }
+}
+
 function costruisciSpese_(ss) {
+  migraSpeseTipo_(ss);
+
   var sh = assicuraFoglio_(ss, FOGLI.SPESE, INTESTAZIONI.SPESE);
   var righe = Math.max(sh.getMaxRows() - 1, 1);
 
   sh.getRange(2, COL.SPESE.DATA, righe, 1).setNumberFormat('yyyy-mm-dd');
   sh.getRange(2, COL.SPESE.IMPORTO, righe, 1).setNumberFormat('#,##0.00');
+  convalidaLista_(sh, COL.SPESE.TIPO, TIPI,
+    'SPESA: importo positivo. ENTRATA: importo negativo.');
   convalidaLista_(sh, COL.SPESE.CRITERIO, CRITERI, 'Criterio di ripartizione.');
   convalidaLista_(sh, COL.SPESE.STATO, STATI,
-    'ANNULLATA esclude la spesa dai saldi senza cancellarla.');
+    'ANNULLATA esclude il movimento dai saldi senza cancellarlo.');
 
   sh.setColumnWidth(COL.SPESE.ID, 80);
+  sh.setColumnWidth(COL.SPESE.TIPO, 90);
   sh.setColumnWidth(COL.SPESE.DESCRIZIONE, 300);
   sh.setColumnWidth(COL.SPESE.CRITERIO, 150);
   sh.setColumnWidth(COL.SPESE.NOTE, 250);
+
+  // Le entrate si leggono a colpo d'occhio senza cercare il segno meno.
+  sh.clearConditionalFormatRules();
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('ENTRATA').setFontColor('#1b5e20')
+      .setRanges([sh.getRange(2, COL.SPESE.TIPO, righe, 1)]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('ANNULLATA').setFontColor('#8a8f96')
+      .setRanges([sh.getRange(2, COL.SPESE.STATO, righe, 1)]).build()
+  ]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -271,17 +337,18 @@ function costruisciSpese_(ss) {
 /* ------------------------------------------------------------------ */
 
 /**
- * La colonna "valida" vale 1 se la spesa di riferimento esiste ed e' in stato
- * OK. E' l'unico filtro usato dai Saldi: annullare una spesa la esclude
- * automaticamente da tutti i calcoli, senza cancellare righe.
+ * La colonna "valida" vale 1 se il movimento di riferimento esiste ed e' in
+ * stato OK. E' l'unico filtro usato dai Saldi: annullare un movimento lo
+ * esclude da tutti i calcoli, senza cancellare righe.
  *
  * Si usa VLOOKUP e non COUNTIFS perche' COUNTIFS non si espande dentro
  * ARRAYFORMULA: ignora il criterio ad array e restituisce un valore unico,
  * replicato identico su tutte le righe.
  */
 function formulaValida_() {
+  var finoAStato = FOGLI.SPESE + '!$A$2:$' + lettera_(COL.SPESE.STATO);
   return f_('=ARRAYFORMULA(IF($A$2:$A=""~""~' +
-            'N(IFERROR(VLOOKUP($A$2:$A~' + FOGLI.SPESE + '!$A$2:$F~' +
+            'N(IFERROR(VLOOKUP($A$2:$A~' + finoAStato + '~' +
             COL.SPESE.STATO + '~FALSE)~"")="OK")))');
 }
 
@@ -339,6 +406,9 @@ function costruisciGiroconti_(ss) {
  * Versare denaro (giroconto in uscita) aumenta il credito; riceverlo lo
  * riduce. Per la cassa, che non ha quote dovute, il saldo e' l'opposto della
  * giacenza: se la cassa detiene 300, il suo saldo e' -300.
+ *
+ * Le entrate hanno importi negativi, quindi chi incassa vede il proprio
+ * `pagato` scendere: tiene in mano denaro del gruppo, ed e' a debito.
  */
 function costruisciSaldi_(ss) {
   var sh = ss.getSheetByName(FOGLI.SALDI) || ss.insertSheet(FOGLI.SALDI);
@@ -353,32 +423,41 @@ function costruisciSaldi_(ss) {
   ]]).setFontWeight('bold').setBackground('#eceff1');
   sh.setFrozenRows(1);
 
-  var A = FOGLI.ANAGRAFICA, Q = FOGLI.QUOTE, P = FOGLI.PAGAMENTI, G = FOGLI.GIROCONTI;
+  var A = FOGLI.ANAGRAFICA;
+  var aID      = colonna_(A, COL.ANAGRAFICA.ID);
+  var qSocio   = colonna_(FOGLI.QUOTE, COL.QUOTE.SOCIO);
+  var qImporto = colonna_(FOGLI.QUOTE, COL.QUOTE.IMPORTO);
+  var qValida  = colonna_(FOGLI.QUOTE, COL.QUOTE.VALIDA);
+  var pChi     = colonna_(FOGLI.PAGAMENTI, COL.PAGAMENTI.PAGANTE);
+  var pImporto = colonna_(FOGLI.PAGAMENTI, COL.PAGAMENTI.IMPORTO);
+  var pValida  = colonna_(FOGLI.PAGAMENTI, COL.PAGAMENTI.VALIDA);
+  var gDa      = colonna_(FOGLI.GIROCONTI, COL.GIROCONTI.DA);
+  var gA       = colonna_(FOGLI.GIROCONTI, COL.GIROCONTI.A);
+  var gImporto = colonna_(FOGLI.GIROCONTI, COL.GIROCONTI.IMPORTO);
 
-  sh.getRange('A2').setFormula(
-    f_('=FILTER(' + A + '!$A$2:$A~' + A + '!$A$2:$A<>"")'));
+  sh.getRange('A2').setFormula(f_('=FILTER(' + aID + '~' + aID + '<>"")'));
 
   // Le colonne B-G sono formule riga per riga, non ARRAYFORMULA.
   // SUMIFS e COUNTIFS non si espandono dentro ARRAYFORMULA: ignorano il
   // criterio ad array e restituiscono un valore unico, replicato identico su
-  // tutte le righe. Qui servono due criteri (il socio e la validita' della
-  // spesa), quindi la strada e' la formula per riga.
+  // tutte le righe. Qui servono due criteri (il socio e la validita' del
+  // movimento), quindi la strada e' la formula per riga.
   var righe = [];
   for (var r = 2; r <= 2 + RIGHE_SALDI - 1; r++) {
     righe.push([
-      f_('=IF($A' + r + '=""~""~IFERROR(VLOOKUP($A' + r + '~' + A + '!$A:$B~2~FALSE)~"?"))'),
-      f_('=IF($A' + r + '=""~""~SUMIFS(' + P + '!$C$2:$C~' +
-         P + '!$B$2:$B~$A' + r + '~' + P + '!$D$2:$D~1))'),
-      f_('=IF($A' + r + '=""~""~SUMIFS(' + Q + '!$C$2:$C~' +
-         Q + '!$B$2:$B~$A' + r + '~' + Q + '!$D$2:$D~1))'),
-      f_('=IF($A' + r + '=""~""~SUMIF(' + G + '!$B$2:$B~$A' + r + '~' + G + '!$D$2:$D))'),
-      f_('=IF($A' + r + '=""~""~SUMIF(' + G + '!$C$2:$C~$A' + r + '~' + G + '!$D$2:$D))'),
+      f_('=IF($A' + r + '=""~""~IFERROR(VLOOKUP($A' + r + '~' +
+         A + '!$A:$B~2~FALSE)~"?"))'),
+      f_('=IF($A' + r + '=""~""~SUMIFS(' + pImporto + '~' + pChi + '~$A' + r +
+         '~' + pValida + '~1))'),
+      f_('=IF($A' + r + '=""~""~SUMIFS(' + qImporto + '~' + qSocio + '~$A' + r +
+         '~' + qValida + '~1))'),
+      f_('=IF($A' + r + '=""~""~SUMIF(' + gDa + '~$A' + r + '~' + gImporto + '))'),
+      f_('=IF($A' + r + '=""~""~SUMIF(' + gA + '~$A' + r + '~' + gImporto + '))'),
       f_('=IF($A' + r + '=""~""~$C' + r + '-$D' + r + '+$E' + r + '-$F' + r + ')')
     ]);
   }
   sh.getRange(2, 2, righe.length, 6).setFormulas(righe);
 
-  // Riquadro di sintesi.
   sh.getRange('I1').setValue('Sintesi').setFontWeight('bold');
   sh.getRange('I2').setValue('Giacenza cassa');
   sh.getRange('J2').setFormula(
@@ -399,7 +478,7 @@ function costruisciSaldi_(ss) {
   sh.setColumnWidth(2, 180);
   sh.setColumnWidth(9, 200);
 
-  var regole = [
+  sh.setConditionalFormatRules([
     SpreadsheetApp.newConditionalFormatRule()
       .whenNumberGreaterThan(0).setFontColor('#1b5e20')
       .setRanges([sh.getRange('G2:G')]).build(),
@@ -409,8 +488,7 @@ function costruisciSaldi_(ss) {
     SpreadsheetApp.newConditionalFormatRule()
       .whenNumberNotEqualTo(0).setBackground('#ffcdd2')
       .setRanges([sh.getRange('J4')]).build()
-  ];
-  sh.setConditionalFormatRules(regole);
+  ]);
 
   proteggiConAvviso_(sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()),
     'Foglio calcolato: non modificare');
@@ -428,76 +506,101 @@ function costruisciControlli_(ss) {
   var S = FOGLI.SPESE, Q = FOGLI.QUOTE, P = FOGLI.PAGAMENTI,
       G = FOGLI.GIROCONTI, A = FOGLI.ANAGRAFICA, SA = FOGLI.SALDI;
 
+  var sID      = colonna_(S, COL.SPESE.ID);
+  var sData    = colonna_(S, COL.SPESE.DATA);
+  var sTipo    = colonna_(S, COL.SPESE.TIPO);
+  var sImporto = colonna_(S, COL.SPESE.IMPORTO);
+  var sStato   = colonna_(S, COL.SPESE.STATO);
+
+  var qID      = colonna_(Q, COL.QUOTE.ID);
+  var qSocio   = colonna_(Q, COL.QUOTE.SOCIO);
+  var qImporto = colonna_(Q, COL.QUOTE.IMPORTO);
+  var qValida  = colonna_(Q, COL.QUOTE.VALIDA);
+  var qValidaD = cella_(Q, COL.QUOTE.VALIDA, 2);
+
+  var pID      = colonna_(P, COL.PAGAMENTI.ID);
+  var pChi     = colonna_(P, COL.PAGAMENTI.PAGANTE);
+  var pImporto = colonna_(P, COL.PAGAMENTI.IMPORTO);
+  var pValida  = colonna_(P, COL.PAGAMENTI.VALIDA);
+  var pValidaD = cella_(P, COL.PAGAMENTI.VALIDA, 2);
+
+  var gData    = colonna_(G, COL.GIROCONTI.DATA);
+  var gDa      = colonna_(G, COL.GIROCONTI.DA);
+  var gA       = colonna_(G, COL.GIROCONTI.A);
+  var gImporto = colonna_(G, COL.GIROCONTI.IMPORTO);
+
+  var aID      = colonna_(A, COL.ANAGRAFICA.ID);
+
+  var attivo = '(' + sID + '<>"")*(' + sStato + '="OK")';
+
   var controlli = [
     // Sentinella sulla causa. La formula vive in D2: cancellare la riga 2 se
     // la porta via senza lasciare traccia, e una colonna `valida` vuota
     // esclude dai saldi quote e pagamenti insieme, in modo simmetrico. Tutti
-    // gli altri controlli restano verdi. Si ripara dal menu, con Ripristina
-    // colonne calcolate.
+    // gli altri controlli restano verdi.
     ['Formula della colonna valida assente o in errore in Quote o Pagamenti',
-     '=IF(ISFORMULA(' + Q + '!$D$2)~0~1)+IF(ISERROR(' + Q + '!$D$2)~1~0)' +
-     '+IF(ISFORMULA(' + P + '!$D$2)~0~1)+IF(ISERROR(' + P + '!$D$2)~1~0)'],
+     '=IF(ISFORMULA(' + qValidaD + ')~0~1)+IF(ISERROR(' + qValidaD + ')~1~0)' +
+     '+IF(ISFORMULA(' + pValidaD + ')~0~1)+IF(ISERROR(' + pValidaD + ')~1~0)'],
 
-    // Sentinella sull'effetto. Per una spesa attiva, il numero di righe
-    // figlie valide deve coincidere col numero di righe figlie: `valida` e'
-    // 1 o 0, quindi SUMIF sulla colonna conta le valide e COUNTIF le conta
-    // tutte. Se non coincidono, quella spesa e' fuori dai saldi in tutto o
-    // in parte pur risultando attiva.
-    ['Spese attive con quote o pagamenti esclusi dai saldi',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(((' +
-     'SUMIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A~' + Q + '!$D$2:$D)<>' +
-     'COUNTIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A))+(' +
-     'SUMIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A~' + P + '!$D$2:$D)<>' +
-     'COUNTIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A)))>0))'],
+    // Sentinella sull'effetto. `valida` e' 1 o 0, quindi SUMIF sulla colonna
+    // conta le righe valide e COUNTIF le conta tutte: se non coincidono, quel
+    // movimento e' fuori dai saldi pur risultando attivo.
+    ['Movimenti attivi con quote o pagamenti esclusi dai saldi',
+     '=SUMPRODUCT(' + attivo + '*(((' +
+     'SUMIF(' + qID + '~' + sID + '~' + qValida + ')<>COUNTIF(' + qID + '~' + sID + '))+(' +
+     'SUMIF(' + pID + '~' + sID + '~' + pValida + ')<>COUNTIF(' + pID + '~' + sID + ')))>0))'],
 
-    ['Spese attive in cui la somma delle quote non pareggia l\'importo',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(' +
-     'ROUND(SUMIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A~' + Q + '!$C$2:$C)~2)<>' +
-     'ROUND(N(' + S + '!$D$2:$D)~2)))'],
+    // Il segno e' la rappresentazione interna del tipo: se divergono, i saldi
+    // sono corretti nell'aritmetica ma dicono il contrario di quel che si
+    // legge nella colonna tipo.
+    ['Tipo e segno dell\'importo discordi, o tipo non valido',
+     '=SUMPRODUCT((' + sID + '<>"")*(((' + sTipo + '="SPESA")*(N(' + sImporto + ')<=0))+((' +
+     sTipo + '="ENTRATA")*(N(' + sImporto + ')>=0))+(1-(' + sTipo + '="SPESA")-(' +
+     sTipo + '="ENTRATA"))>0))'],
 
-    ['Spese attive in cui la somma dei pagamenti non pareggia l\'importo',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(' +
-     'ROUND(SUMIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A~' + P + '!$C$2:$C)~2)<>' +
-     'ROUND(N(' + S + '!$D$2:$D)~2)))'],
+    ['Movimenti attivi in cui la somma delle quote non pareggia l\'importo',
+     '=SUMPRODUCT(' + attivo + '*(' +
+     'ROUND(SUMIF(' + qID + '~' + sID + '~' + qImporto + ')~2)<>ROUND(N(' + sImporto + ')~2)))'],
 
-    ['Spese attive senza quote o senza pagamenti',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(' + S + '!$F$2:$F="OK")*(((' +
-     'COUNTIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A)=0)+(' +
-     'COUNTIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A)=0))>0))'],
+    ['Movimenti attivi in cui la somma dei pagamenti non pareggia l\'importo',
+     '=SUMPRODUCT(' + attivo + '*(' +
+     'ROUND(SUMIF(' + pID + '~' + sID + '~' + pImporto + ')~2)<>ROUND(N(' + sImporto + ')~2)))'],
+
+    ['Movimenti attivi senza quote o senza pagamenti',
+     '=SUMPRODUCT(' + attivo + '*(((COUNTIF(' + qID + '~' + sID + ')=0)+(' +
+     'COUNTIF(' + pID + '~' + sID + ')=0))>0))'],
 
     ['Righe di Quote o Pagamenti orfane (id_spesa inesistente)',
-     '=SUMPRODUCT((' + Q + '!$A$2:$A<>"")*(COUNTIF(' + S + '!$A$2:$A~' +
-     Q + '!$A$2:$A)=0))+SUMPRODUCT((' + P + '!$A$2:$A<>"")*(COUNTIF(' +
-     S + '!$A$2:$A~' + P + '!$A$2:$A)=0))'],
+     '=SUMPRODUCT((' + qID + '<>"")*(COUNTIF(' + sID + '~' + qID + ')=0))' +
+     '+SUMPRODUCT((' + pID + '<>"")*(COUNTIF(' + sID + '~' + pID + ')=0))'],
 
     ['id_spesa duplicati',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(COUNTIF(' + S + '!$A$2:$A~' +
-     S + '!$A$2:$A)>1))'],
+     '=SUMPRODUCT((' + sID + '<>"")*(COUNTIF(' + sID + '~' + sID + ')>1))'],
 
     ['Soci citati in Quote o Pagamenti ma assenti in Anagrafica',
-     '=SUMPRODUCT((' + Q + '!$A$2:$A<>"")*(COUNTIF(' + A + '!$A$2:$A~' +
-     Q + '!$B$2:$B)=0))+SUMPRODUCT((' + P + '!$A$2:$A<>"")*(COUNTIF(' +
-     A + '!$A$2:$A~' + P + '!$B$2:$B)=0))'],
+     '=SUMPRODUCT((' + qID + '<>"")*(COUNTIF(' + aID + '~' + qSocio + ')=0))' +
+     '+SUMPRODUCT((' + pID + '<>"")*(COUNTIF(' + aID + '~' + pChi + ')=0))'],
 
     ['Giroconti con soggetti inesistenti o con mittente uguale a destinatario',
-     '=SUMPRODUCT((' + G + '!$A$2:$A<>"")*(((COUNTIF(' + A + '!$A$2:$A~' +
-     G + '!$B$2:$B)=0)+(COUNTIF(' + A + '!$A$2:$A~' + G + '!$C$2:$C)=0)+(' +
-     G + '!$B$2:$B=' + G + '!$C$2:$C))>0))'],
+     '=SUMPRODUCT((' + gData + '<>"")*(((COUNTIF(' + aID + '~' + gDa + ')=0)+(' +
+     'COUNTIF(' + aID + '~' + gA + ')=0)+(' + gDa + '=' + gA + '))>0))'],
 
-    ['Importi nulli o negativi in Spese o Giroconti',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(N(' + S + '!$D$2:$D)<=0))' +
-     '+SUMPRODUCT((' + G + '!$A$2:$A<>"")*(N(' + G + '!$D$2:$D)<=0))'],
+    // Un movimento a zero non e' un errore aritmetico ma non ha significato.
+    // Nei giroconti il verso e' dato dalle colonne da/a, quindi li' un importo
+    // negativo resta un errore.
+    ['Importi nulli in Spese, o nulli/negativi in Giroconti',
+     '=SUMPRODUCT((' + sID + '<>"")*(N(' + sImporto + ')=0))' +
+     '+SUMPRODUCT((' + gData + '<>"")*(N(' + gImporto + ')<=0))'],
 
     ['Date fuori intervallo (prima di data_min o nel futuro)',
-     '=SUMPRODUCT((' + S + '!$A$2:$A<>"")*(((N(' + S + '!$B$2:$B)<N(' +
-     riferimentoMeta_(META.DATA_MIN) + '))+(N(' + S + '!$B$2:$B)>N(TODAY())))>0))' +
-     '+SUMPRODUCT((' + G + '!$A$2:$A<>"")*(((N(' + G + '!$A$2:$A)<N(' +
-     riferimentoMeta_(META.DATA_MIN) + '))+(N(' + G + '!$A$2:$A)>N(TODAY())))>0))'],
+     '=SUMPRODUCT((' + sID + '<>"")*(((N(' + sData + ')<N(' +
+     riferimentoMeta_(META.DATA_MIN) + '))+(N(' + sData + ')>N(TODAY())))>0))' +
+     '+SUMPRODUCT((' + gData + '<>"")*(((N(' + gData + ')<N(' +
+     riferimentoMeta_(META.DATA_MIN) + '))+(N(' + gData + ')>N(TODAY())))>0))'],
 
     ['Soci di riferimento non presenti: socio_arrotondamento o nome_cassa',
-     '=IF(COUNTIF(' + A + '!$A$2:$A~' + riferimentoMeta_(META.SOCIO_ARROTONDAMENTO) +
-     ')=0~1~0)+IF(COUNTIF(' + A + '!$A$2:$A~' + riferimentoMeta_(META.NOME_CASSA) +
-     ')=0~1~0)'],
+     '=IF(COUNTIF(' + aID + '~' + riferimentoMeta_(META.SOCIO_ARROTONDAMENTO) +
+     ')=0~1~0)+IF(COUNTIF(' + aID + '~' + riferimentoMeta_(META.NOME_CASSA) + ')=0~1~0)'],
 
     ['Sbilancio complessivo: la somma di tutti i saldi non e\' zero',
      '=IF(ROUND(SUM(' + SA + '!$G$2:$G)~2)=0~0~1)'],
@@ -516,30 +619,26 @@ function costruisciControlli_(ss) {
     sh.getRange(i + 2, 3).setFormula(f_('=IF(N($B' + (i + 2) + ')=0~"ok"~"da correggere")'));
   }
 
-  // Drill-down: elenco delle spese che non pareggiano.
+  // Drill-down: elenco dei movimenti che non pareggiano.
   // Quattro FILTER separati invece di un array letterale {a,b,c}: anche il
   // separatore di colonna degli array cambia col locale del foglio.
   var cond =
-    S + '!$A$2:$A<>""~' + S + '!$F$2:$F="OK"~((' +
-    'ROUND(SUMIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A~' + Q + '!$C$2:$C)~2)<>' +
-    'ROUND(N(' + S + '!$D$2:$D)~2))+(' +
-    'ROUND(SUMIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A~' + P + '!$C$2:$C)~2)<>' +
-    'ROUND(N(' + S + '!$D$2:$D)~2)))>0';
+    sID + '<>""~' + sStato + '="OK"~((' +
+    'ROUND(SUMIF(' + qID + '~' + sID + '~' + qImporto + ')~2)<>ROUND(N(' + sImporto + ')~2))+(' +
+    'ROUND(SUMIF(' + pID + '~' + sID + '~' + pImporto + ')~2)<>ROUND(N(' + sImporto + ')~2)))>0';
 
   sh.getRange('E1:H1').setValues([[
     'id_spesa', 'importo', 'somma_quote', 'somma_pagamenti'
   ]]).setFontWeight('bold').setBackground('#eceff1');
 
   sh.getRange('E2').setFormula(f_(
-    '=IFERROR(FILTER(' + S + '!$A$2:$A~' + cond + ')~"nessuna anomalia")'));
+    '=IFERROR(FILTER(' + sID + '~' + cond + ')~"nessuna anomalia")'));
   sh.getRange('F2').setFormula(f_(
-    '=IFERROR(FILTER(' + S + '!$D$2:$D~' + cond + ')~"")'));
+    '=IFERROR(FILTER(' + sImporto + '~' + cond + ')~"")'));
   sh.getRange('G2').setFormula(f_(
-    '=IFERROR(FILTER(SUMIF(' + Q + '!$A$2:$A~' + S + '!$A$2:$A~' + Q + '!$C$2:$C)~' +
-    cond + ')~"")'));
+    '=IFERROR(FILTER(SUMIF(' + qID + '~' + sID + '~' + qImporto + ')~' + cond + ')~"")'));
   sh.getRange('H2').setFormula(f_(
-    '=IFERROR(FILTER(SUMIF(' + P + '!$A$2:$A~' + S + '!$A$2:$A~' + P + '!$C$2:$C)~' +
-    cond + ')~"")'));
+    '=IFERROR(FILTER(SUMIF(' + pID + '~' + sID + '~' + pImporto + ')~' + cond + ')~"")'));
 
   sh.setColumnWidth(1, 480);
   sh.setColumnWidth(2, 90);

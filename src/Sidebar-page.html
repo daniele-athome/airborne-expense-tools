@@ -69,6 +69,7 @@
   }
 
   .scelte { display: flex; flex-direction: column; gap: 5px; }
+  .scelte.affiancate { flex-direction: row; gap: 16px; }
   .scelta { display: flex; align-items: baseline; gap: 7px; }
   .scelta small { color: var(--attenuato); }
 
@@ -174,9 +175,10 @@
       <input type="text" id="descrizione" placeholder="Assicurazione annuale">
     </label>
     <label class="campo">
-      <span>Importo totale</span>
+      <span id="etichettaImporto">Importo totale</span>
       <input type="number" id="importo" step="0.01" min="0" placeholder="0,00">
     </label>
+    <div class="scelte" id="tipi"></div>
   </fieldset>
 
   <fieldset>
@@ -191,13 +193,13 @@
   </fieldset>
 
   <fieldset>
-    <legend>Chi ha pagato</legend>
+    <legend id="legPaganti">Chi ha pagato</legend>
     <table class="righe" id="pagamenti"></table>
     <button type="button" class="testo" id="aggiungiPagante">Aggiungi un altro pagante</button>
   </fieldset>
 
   <fieldset>
-    <legend>Quote risultanti</legend>
+    <legend id="legQuote">Quote risultanti</legend>
     <table class="righe" id="anteprima"></table>
   </fieldset>
 
@@ -211,11 +213,11 @@
   <div class="piede">
     <div id="messaggio" class="messaggio"></div>
     <div class="quadratura">
-      <div><span>Quote</span><span id="qQuote">0,00</span></div>
-      <div><span>Pagamenti</span><span id="qPagamenti">0,00</span></div>
+      <div><span id="etQuote">Quote</span><span id="qQuote">0,00</span></div>
+      <div><span id="etPagamenti">Pagamenti</span><span id="qPagamenti">0,00</span></div>
       <div class="esito"><span id="qEtichetta">Da compilare</span><span id="qDelta"></span></div>
     </div>
-    <button type="button" class="principale" id="salva" disabled>Salva spesa</button>
+    <button type="button" class="principale" id="salva" disabled>Salva</button>
     <button type="button" class="secondaria" id="chiudi">Chiudi</button>
   </div>
 
@@ -236,6 +238,12 @@ function cent(v) {
   return isFinite(n) ? Math.round(n * 100) : 0;
 }
 function el(id) { return document.getElementById(id); }
+
+function tipoAttivo() {
+  var r = document.querySelector('input[name=tipo]:checked');
+  return r ? r.value : 'SPESA';
+}
+function segno() { return tipoAttivo() === 'ENTRATA' ? -1 : 1; }
 
 function criterioAttivo() {
   var r = document.querySelector('input[name=criterio]:checked');
@@ -258,21 +266,25 @@ function quoteLocali() {
   if (criterio === 'MANUALE') {
     return {
       quote: scelti.map(function (s) {
-        return { socio: s, importo: cent(valoreManuale(s)) / 100 };
+        return { socio: s, importo: segno() * cent(valoreManuale(s)) / 100 };
       }),
       resto: 0, destinatario: null
     };
   }
 
   var n = scelti.length;
-  var base = Math.floor(totale / n / 100) * 100;
-  var resto = totale - base * n;
+  // Troncamento verso lo zero e segno riapplicato alla fine: stessa logica di
+  // Ripartizione.gs, cosi' l'anteprima non mente mai sul risultato.
+  var sg = segno();
+  var assoluto = Math.abs(totale);
+  var base = Math.floor(assoluto / n / 100) * 100;
+  var resto = assoluto - base * n;
   var dest = scelti.indexOf(DATI.socioArrotondamento) !== -1
     ? DATI.socioArrotondamento : scelti[0];
 
   return {
     quote: scelti.map(function (s) {
-      return { socio: s, importo: (base + (s === dest ? resto : 0)) / 100 };
+      return { socio: s, importo: sg * (base + (s === dest ? resto : 0)) / 100 };
     }),
     resto: resto,
     destinatario: dest
@@ -295,6 +307,15 @@ function costruisci() {
     el('sottotitolo').textContent =
       'Quote e pagamenti vengono riscritti da capo, non corretti riga per riga.';
   }
+
+  var etichetteTipo = { SPESA: 'denaro che esce', ENTRATA: 'denaro che entra' };
+  el('tipi').className = 'scelte affiancate';
+  el('tipi').innerHTML = (DATI.tipi || ['SPESA', 'ENTRATA']).map(function (t, i) {
+    return '<div class="scelta">' +
+      '<input type="radio" name="tipo" id="tp' + i + '" value="' + t + '">' +
+      '<label for="tp' + i + '">' + t.toLowerCase() +
+      ' <small>' + etichetteTipo[t] + '</small></label></div>';
+  }).join('');
 
   var criteri = { UGUALE_TUTTI: 'tra tutti i soci attivi',
                   UGUALE_SELEZIONE: 'tra i soci che scegli',
@@ -320,25 +341,30 @@ function costruisci() {
 
   if (DATI.spesa) {
     el('descrizione').value = DATI.spesa.descrizione;
-    el('importo').value = DATI.spesa.importo;
+    el('importo').value = Math.abs(DATI.spesa.importo);
     el('note').value = DATI.spesa.note;
     var radio = document.querySelector('input[name=criterio][value="' + DATI.spesa.criterio + '"]');
     if (radio) radio.checked = true;
+    var radioTipo = document.querySelector('input[name=tipo][value="' +
+      (DATI.spesa.tipo || 'SPESA') + '"]');
+    if (radioTipo) radioTipo.checked = true;
     DATI.spesa.quote.forEach(function (q) {
       var c = el('p_' + q.socio);
       if (c) c.checked = true;
       var m = document.querySelector('.manuale[data-socio="' + q.socio + '"]');
-      if (m) m.value = q.importo;
+      if (m) m.value = Math.abs(q.importo);
     });
     pagamenti = DATI.spesa.pagamenti.map(function (p) {
-      return { pagante: p.pagante, importo: p.importo };
+      return { pagante: p.pagante, importo: Math.abs(p.importo) };
     });
   } else {
     document.querySelector('input[name=criterio][value="UGUALE_TUTTI"]').checked = true;
+    document.querySelector('input[name=tipo][value="SPESA"]').checked = true;
     pagamenti = [{ pagante: '', importo: '' }];
   }
 
   collegaEventi();
+  applicaTipo();
   applicaCriterio();
   disegnaPagamenti();
   aggiorna();
@@ -359,6 +385,9 @@ function collegaEventi() {
   document.querySelectorAll('input[name=criterio]').forEach(function (r) {
     r.addEventListener('change', function () { applicaCriterio(); aggiorna(); });
   });
+  document.querySelectorAll('input[name=tipo]').forEach(function (r) {
+    r.addEventListener('change', function () { applicaTipo(); aggiorna(); });
+  });
   document.querySelectorAll('.partecipa').forEach(function (c) {
     c.addEventListener('change', aggiorna);
   });
@@ -378,6 +407,18 @@ function collegaEventi() {
   });
   el('salva').addEventListener('click', salva);
   el('chiudi').addEventListener('click', function () { google.script.host.close(); });
+}
+
+/** Il lessico cambia col tipo: un'entrata non si "paga", si incassa. */
+function applicaTipo() {
+  var entrata = (tipoAttivo() === 'ENTRATA');
+  el('etichettaImporto').textContent = entrata ? 'Importo incassato' : 'Importo totale';
+  el('legPaganti').textContent = entrata ? 'Chi ha incassato' : 'Chi ha pagato';
+  el('legQuote').textContent = entrata ? 'Quote di spettanza' : 'Quote risultanti';
+  el('etQuote').textContent = entrata ? 'Spettanze' : 'Quote';
+  el('etPagamenti').textContent = entrata ? 'Incassi' : 'Pagamenti';
+  el('descrizione').placeholder = entrata
+    ? 'Rimborso in garanzia radio' : 'Assicurazione annuale';
 }
 
 function applicaCriterio() {
@@ -442,7 +483,10 @@ function aggiorna() {
   var totale = cent(el('importo').value);
   var ris = quoteLocali();
 
-  var sommaQuote = ris.quote.reduce(function (a, q) { return a + cent(q.importo); }, 0);
+  // Le quote portano gia' il segno del tipo; i pagamenti si digitano positivi.
+  // Il confronto avviene sui valori assoluti, cosi' la quadratura non dipende
+  // dal tipo selezionato.
+  var sommaQuote = Math.abs(ris.quote.reduce(function (a, q) { return a + cent(q.importo); }, 0));
   var sommaPag = pagamenti.reduce(function (a, p) { return a + cent(p.importo); }, 0);
 
   var mappa = {};
@@ -524,6 +568,7 @@ function salva() {
   var payload = {
     id: ID_SPESA || null,
     data: el('data').value,
+    tipo: tipoAttivo(),
     descrizione: el('descrizione').value,
     importo: Number(el('importo').value),
     criterio: criterioAttivo(),
@@ -537,12 +582,12 @@ function salva() {
 
   google.script.run
     .withSuccessHandler(function (r) {
-      el('salva').textContent = 'Salva spesa';
+      el('salva').textContent = 'Salva';
       var testo;
       if (r.modifica) {
-        testo = 'Spesa ' + r.id + ' aggiornata.';
+        testo = 'Movimento ' + r.id + ' aggiornato.';
       } else {
-        testo = 'Spesa ' + r.id + ' registrata. Ne puoi inserire un\'altra.';
+        testo = 'Movimento ' + r.id + ' registrato. Ne puoi inserire un altro.';
         el('descrizione').value = '';
         el('importo').value = '';
         el('note').value = '';
@@ -556,7 +601,7 @@ function salva() {
       messaggio('fatto', testo);
     })
     .withFailureHandler(function (e) {
-      el('salva').textContent = 'Salva spesa';
+      el('salva').textContent = 'Salva';
       el('salva').disabled = false;
       messaggio('errore', e.message || String(e));
     })
