@@ -142,7 +142,7 @@ function salvaSpesa(payload) {
       shSpese.getRange(riga, 1, 1, testata.length).setValues([testata]);
     }
 
-    rigeneraProspetto_(ss);
+    var avvisoProspetto = rigeneraProspettoSicuro_(ss);
 
     scriviLog_(modifica ? 'MODIFICA' : 'INSERIMENTO', id,
       p.descrizione + ' | ' + p.importo.toFixed(2) + ' | ' + p.criterio +
@@ -152,7 +152,7 @@ function salvaSpesa(payload) {
       id: id,
       modifica: modifica,
       quote: quote,
-      avvisi: risultato.avvisi
+      avvisi: risultato.avvisi.concat(avvisoProspetto ? [avvisoProspetto] : [])
     };
 
   } finally {
@@ -188,9 +188,10 @@ function annullaSpesaSelezionata() {
     var ripristina = ui.alert('La spesa ' + id + ' e\' gia\' annullata. Vuoi riattivarla?',
       ui.ButtonSet.YES_NO);
     if (ripristina !== ui.Button.YES) return;
-    impostaStatoSpesa_(id, 'OK');
+    var avvisoR = impostaStatoSpesa_(id, 'OK');
     scriviLog_('RIATTIVAZIONE', id, spesa.descrizione);
-    SpreadsheetApp.getActive().toast('Spesa ' + id + ' riattivata.', 'Spese aereo', 5);
+    SpreadsheetApp.getActive().toast('Spesa ' + id + ' riattivata.' +
+      (avvisoR ? ' ' + avvisoR : ''), 'Spese aereo', avvisoR ? 15 : 5);
     return;
   }
 
@@ -200,17 +201,19 @@ function annullaSpesaSelezionata() {
     ui.ButtonSet.YES_NO);
   if (risposta !== ui.Button.YES) return;
 
-  impostaStatoSpesa_(id, 'ANNULLATA');
+  var avvisoA = impostaStatoSpesa_(id, 'ANNULLATA');
   scriviLog_('ANNULLAMENTO', id, spesa.descrizione);
-  SpreadsheetApp.getActive().toast('Spesa ' + id + ' annullata.', 'Spese aereo', 5);
+  SpreadsheetApp.getActive().toast('Spesa ' + id + ' annullata.' +
+    (avvisoA ? ' ' + avvisoA : ''), 'Spese aereo', avvisoA ? 15 : 5);
 }
 
+/** @return {string} avviso sul prospetto, '' se rigenerato senza errori */
 function impostaStatoSpesa_(id, stato) {
   var riga = trovaRigaSpesa_(id);
   if (!riga) throw new Error('Movimento ' + id + ' non trovato.');
   SpreadsheetApp.getActive().getSheetByName(FOGLI.SPESE)
     .getRange(riga, COL.SPESE.STATO).setValue(stato);
-  rigeneraProspetto_();
+  return rigeneraProspettoSicuro_();
 }
 
 /* ------------------------------------------------------------------ */

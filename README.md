@@ -36,9 +36,9 @@ spese condivise di un gruppo di comproprietari.
    mostra finestre di dialogo.
 5. Ricarica il foglio. Compare il menu **Spese aereo**.
 
-Se preferisci lavorare da locale con git, `clasp clone <scriptId>` e poi
-`clasp push`; i nomi dei file restano gli stessi, con estensione `.js` invece
-di `.gs`.
+Se preferisci lavorare da locale con git, i sorgenti stanno in `src/` e
+`npm run push` (cioè `clasp push`) li carica nel progetto indicato da
+`.clasp.json`; i nomi dei file restano gli stessi, con estensione `.gs`.
 
 `setup` è idempotente: puoi rilanciarlo quando vuoi (menu → Ricostruisci
 struttura). Crea i fogli mancanti, riscrive intestazioni, convalide e formule
@@ -61,15 +61,16 @@ cambiare solo il nome visualizzato.
 
 ## Uso quotidiano
 
-**Registrare una spesa.** Menu → Nuova spesa. Compili importo, criterio,
+**Registrare una spesa.** Menu → Nuovo movimento. Compili importo, criterio,
 partecipanti e paganti; in basso la striscia di quadratura mostra se quote e
 pagamenti pareggiano il totale. Il pulsante di salvataggio resta spento finché
 non quadra tutto.
 
-**Correggere.** Seleziona la riga nel foglio `Spese`, menu → Modifica spesa
-selezionata. Quote e pagamenti vengono cancellati e riscritti da capo.
+**Correggere.** Seleziona la riga nel foglio `Spese` o `Prospetto`, menu →
+Modifica movimento selezionato. Quote e pagamenti vengono cancellati e
+riscritti da capo.
 
-**Annullare.** Seleziona la riga, menu → Annulla spesa selezionata. Lo stato
+**Annullare.** Seleziona la riga, menu → Annulla movimento selezionato. Lo stato
 passa a `ANNULLATA`: la spesa esce dai saldi ma resta leggibile e il
 progressivo non si buca. Dallo stesso comando la si può riattivare.
 
@@ -210,8 +211,18 @@ funzione.
 
 Per questo la riga 1 porta un timbro con data, numero di movimenti e totale
 degli importi **com'erano all'ultima rigenerazione**, e un controllo confronta
-quei due numeri con i dati reali. Se non coincidono, la riga diventa rossa e
-basta lanciare menu → Aggiorna prospetto.
+quei due numeri con i dati reali di `Spese`. Se non coincidono, la riga diventa
+rossa e basta lanciare menu → Aggiorna prospetto.
+
+Il timbro non è un checksum: si accorge solo delle modifiche che cambiano il
+numero di movimenti o il loro totale. Una correzione a mano in `Quote` o
+`Pagamenti`, o un cambio di `stato` o di `descrizione` direttamente in `Spese`,
+lasciano il controllo verde. Dopo modifiche del genere, aggiorna il prospetto a
+mano.
+
+Se la rigenerazione fallisce dopo un salvataggio, il movimento resta comunque
+salvato: la sidebar lo conferma con un avviso che invita a lanciare Aggiorna
+prospetto, e l'errore finisce nel `Log`.
 
 I totali di colonna, se li calcoli, corrispondono alle colonne `dovuto` e
 `pagato` di `Saldi`, non al `saldo`: i giroconti non compaiono nel prospetto,
@@ -263,7 +274,8 @@ pareggiano l'importo della loro spesa.
 ### Arrotondamento
 
 Le quote sono in euro interi. La quota base è l'importo diviso i partecipanti,
-troncato all'intero inferiore; tutto il resto, decimali compresi, va al socio
+troncato all'intero verso lo zero (per le entrate, negative, vedi sopra); tutto
+il resto, decimali compresi, va al socio
 indicato da `socio_arrotondamento`.
 
     100,50 tra tre soci  →  33 / 33 / 34,50
@@ -384,9 +396,10 @@ coincida col numero di righe figlie. Il rimedio è menu → Ripristina colonne
 calcolate, che riscrive le due formule senza toccare i dati.
 
 **Modifiche manuali alle colonne calcolate.** Le colonne `valida` e i fogli
-`Saldi` e `Controlli` sono protetti con solo avviso: Google chiede conferma ma
-non blocca. Se qualcuno le sovrascrive, `ripristinaColonneCalcolate()` (o un
-nuovo `setup`) le rimette a posto.
+`Saldi`, `Controlli` e `Prospetto` sono protetti con solo avviso: Google chiede
+conferma ma non blocca. Le colonne `valida` le rimette a posto menu →
+Ripristina colonne calcolate; `Saldi` e `Controlli` un nuovo `setup` (menu →
+Ricostruisci struttura); il `Prospetto` menu → Aggiorna prospetto.
 
 **Cancellare righe a mano.** Non farlo su `Spese`: usa l'annullamento. Se
 cancelli una testata lasciando quote e pagamenti, i controlli segnalano righe

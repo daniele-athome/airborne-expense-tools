@@ -93,10 +93,11 @@ function compattaTabelle() {
     });
 
     SpreadsheetApp.flush();
-    rigeneraProspetto_(ss);
+    var avviso = rigeneraProspettoSicuro_(ss);
     scriviLog_('COMPATTAZIONE', '', esito.join(' | '));
     ui.alert('Compattazione eseguita', esito.join('\n') +
-      '\n\nControlla il foglio Saldi: i totali non devono essere cambiati.',
+      '\n\nControlla il foglio Saldi: i totali non devono essere cambiati.' +
+      (avviso ? '\n\n' + avviso : ''),
       ui.ButtonSet.OK);
 
   } finally {

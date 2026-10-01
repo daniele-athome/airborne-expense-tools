@@ -25,11 +25,40 @@
 /** Righe di intestazione: nomi dei soci sopra, quota/pagato sotto. */
 var PROSPETTO_INTESTAZIONI = 2;
 
+/**
+ * Colonne del timbro in riga 1. Il controllo "Prospetto non aggiornato" in
+ * Setup.gs legge MOVIMENTI e TOTALE da qui con cella_(): spostare un valore
+ * del timbro senza passare da questa tabella romperebbe il controllo.
+ */
+var COL_TIMBRO = { ETICHETTA: 1, DATA: 3, MOVIMENTI: 5, TOTALE: 7 };
+
 /** Comando di menu. */
 function aggiornaProspetto() {
   var ss = SpreadsheetApp.getActive();
   var n = rigeneraProspetto_(ss);
   ss.toast(n + ' movimenti nel prospetto.', 'Spese aereo', 5);
+}
+
+/**
+ * Rigenerazione chiamata dopo una scrittura contabile gia' avvenuta.
+ *
+ * Non deve mai propagare un errore: la spesa a quel punto e' salvata, e
+ * un'eccezione arriverebbe al client come salvataggio fallito, invitando a
+ * riprovare e a registrare il movimento due volte. Un prospetto rimasto
+ * vecchio invece lo segnala gia' il controllo sul timbro.
+ *
+ * @param {Spreadsheet=} ss
+ * @return {string} avviso da mostrare all'utente, '' se tutto bene
+ */
+function rigeneraProspettoSicuro_(ss) {
+  try {
+    rigeneraProspetto_(ss);
+    return '';
+  } catch (e) {
+    scriviLog_('ERRORE_PROSPETTO', '', String(e && e.message || e));
+    return 'Dati salvati, ma il prospetto non e\' stato aggiornato: ' +
+      'lancia "Aggiorna prospetto" dal menu.';
+  }
 }
 
 /**
@@ -196,16 +225,24 @@ function scriviIntestazioni_(sh, conQuota, haCassa, cassa, fisse, larghezza) {
  */
 function timbra_(sh, movimenti) {
   var totale = movimenti.reduce(function (a, m) { return a + m.importo; }, 0);
-  sh.getRange(1, 1, 1, 7).setValues([[
-    'Prospetto', 'rigenerato il', new Date(),
-    'movimenti', movimenti.length,
-    'totale importi', Math.round(totale * 100) / 100
-  ]]);
-  sh.getRange(1, 3).setNumberFormat('yyyy-mm-dd hh:mm');
-  sh.getRange(1, 7).setNumberFormat('#,##0.00');
-  sh.getRange(1, 1).setFontWeight('bold');
-  sh.getRange(1, 1, 1, 7).setFontColor('#626d78').setBackground(null);
-  sh.getRange(1, 1).setFontColor('#1c2024');
+  var larghezza = COL_TIMBRO.TOTALE;
+
+  // Ogni valore preceduto dalla sua etichetta, nella cella a sinistra.
+  var riga = [];
+  for (var i = 0; i < larghezza; i++) riga.push('');
+  riga[COL_TIMBRO.ETICHETTA - 1] = 'Prospetto';
+  riga[COL_TIMBRO.DATA - 2]      = 'rigenerato il';
+  riga[COL_TIMBRO.DATA - 1]      = new Date();
+  riga[COL_TIMBRO.MOVIMENTI - 2] = 'movimenti';
+  riga[COL_TIMBRO.MOVIMENTI - 1] = movimenti.length;
+  riga[COL_TIMBRO.TOTALE - 2]    = 'totale importi';
+  riga[COL_TIMBRO.TOTALE - 1]    = Math.round(totale * 100) / 100;
+
+  sh.getRange(1, 1, 1, larghezza).setValues([riga]);
+  sh.getRange(1, COL_TIMBRO.DATA).setNumberFormat('yyyy-mm-dd hh:mm');
+  sh.getRange(1, COL_TIMBRO.TOTALE).setNumberFormat('#,##0.00');
+  sh.getRange(1, 1, 1, larghezza).setFontColor('#626d78').setBackground(null);
+  sh.getRange(1, COL_TIMBRO.ETICHETTA).setFontWeight('bold').setFontColor('#1c2024');
 }
 
 function formatta_(sh, nRighe, fisse, larghezza) {
@@ -237,9 +274,13 @@ function formatta_(sh, nRighe, fisse, larghezza) {
     SpreadsheetApp.newConditionalFormatRule()
       .whenFormulaSatisfied('=' + statoRel + '="ANNULLATA"')
       .setFontColor('#9aa0a6').setRanges([tutto]).build(),
+    // Prodotto di booleani invece di AND(a~b): la formula non ha argomenti
+    // multipli e quindi non dipende dal separatore. Non e' un vezzo: questa
+    // funzione gira a ogni salvataggio, e passare da f_() vorrebbe dire
+    // creare e cancellare il foglio sonda di separatoreArgomenti_() ogni volta.
     SpreadsheetApp.newConditionalFormatRule()
-      .whenFormulaSatisfied('=AND(' + tipoRel + '="ENTRATA"' +
-                            separatoreArgomenti_() + statoRel + '<>"ANNULLATA")')
+      .whenFormulaSatisfied('=(' + tipoRel + '="ENTRATA")*(' +
+                            statoRel + '<>"ANNULLATA")=1')
       .setFontColor('#1b5e20').setRanges([tutto]).build()
   ]);
 

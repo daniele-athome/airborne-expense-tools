@@ -627,8 +627,9 @@ function costruisciControlli_(ss) {
     // Il timbro in riga 1 porta i numeri com'erano all'ultima rigenerazione:
     // se non coincidono piu' con i dati reali, il prospetto e' vecchio.
     ['Prospetto non aggiornato: rilancia Aggiorna prospetto',
-     '=IF(N(' + FOGLI.PROSPETTO + '!$E$1)<>SUMPRODUCT((' + sID + '<>"")*1)~1~0)' +
-     '+IF(ROUND(N(' + FOGLI.PROSPETTO + '!$G$1)~2)<>' +
+     '=IF(N(' + cella_(FOGLI.PROSPETTO, COL_TIMBRO.MOVIMENTI, 1) + ')<>' +
+     'SUMPRODUCT((' + sID + '<>"")*1)~1~0)' +
+     '+IF(ROUND(N(' + cella_(FOGLI.PROSPETTO, COL_TIMBRO.TOTALE, 1) + ')~2)<>' +
      'ROUND(SUMPRODUCT((' + sID + '<>"")*N(' + sImporto + '))~2)~1~0)'],
 
     ['Importi con piu\' di due decimali',
