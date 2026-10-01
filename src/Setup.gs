@@ -605,8 +605,25 @@ function costruisciControlli_(ss) {
     ['Sbilancio complessivo: la somma di tutti i saldi non e\' zero',
      '=IF(ROUND(SUM(' + SA + '!$G$2:$G)~2)=0~0~1)'],
 
+    // Il confronto passa da ROUND(...~2) come tutti gli altri, non da una soglia
+    // esplicita. Non e' solo uniformita': senza arrotondamento il controllo
+    // scatterebbe su una cassa perfettamente vuota. Verificato sul foglio:
+    // Sheets usa doppia precisione IEEE 754 ((2^53+1)=2^53 da' TRUE) e i
+    // residui sopravvivono al confronto diretto (1/10+2/10-3/10=0 da' FALSE).
+    // Su 10.000 addizioni di 0,01 l'errore accumulato arriva a 1,4e-11: lontano
+    // dal centesimo, ma abbastanza da far fallire un <0 secco.
     ['Giacenza di cassa negativa',
-     '=IF(' + SA + '!$J$2<-0.005~1~0)']
+     '=IF(ROUND(' + SA + '!$J$2~2)<0~1~0)'],
+
+    // I valori scritti dallo script sono puliti per costruzione: la
+    // ripartizione lavora in centesimi interi e divide per 100 solo alla fine.
+    // I giroconti pero' si digitano a mano, ed e' l'unico punto in cui un
+    // importo con piu' di due decimali entra dalla porta principale.
+    ['Importi con piu\' di due decimali',
+     '=SUMPRODUCT((' + sID + '<>"")*(ROUND(N(' + sImporto + ')~2)<>N(' + sImporto + ')))' +
+     '+SUMPRODUCT((' + gData + '<>"")*(ROUND(N(' + gImporto + ')~2)<>N(' + gImporto + ')))' +
+     '+SUMPRODUCT((' + qID + '<>"")*(ROUND(N(' + qImporto + ')~2)<>N(' + qImporto + ')))' +
+     '+SUMPRODUCT((' + pID + '<>"")*(ROUND(N(' + pImporto + ')~2)<>N(' + pImporto + ')))']
   ];
 
   sh.getRange(1, 1, 1, 3).setValues([['controllo', 'anomalie', 'esito']])
