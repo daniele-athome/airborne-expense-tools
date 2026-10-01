@@ -20,6 +20,9 @@ function apriSidebarModifica() {
 }
 
 function mostraSidebar_(idSpesa) {
+  // 'Sidebar-page' e non 'Sidebar': Apps Script non ammette due file con lo
+  // stesso nome, nemmeno di estensione diversa, quindi Sidebar.gs e
+  // Sidebar.html non potrebbero coesistere.
   var t = HtmlService.createTemplateFromFile('Sidebar-page');
   t.idSpesa = idSpesa || '';
   var html = t.evaluate()

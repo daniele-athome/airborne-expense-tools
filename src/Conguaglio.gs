@@ -13,6 +13,7 @@
 
 function mostraConguaglio() {
   var dati = calcolaConguaglio_();
+  // 'Conguaglio-page': vedi la nota in Sidebar.gs sui nomi dei file.
   var t = HtmlService.createTemplateFromFile('Conguaglio-page');
   t.dati = dati;
   SpreadsheetApp.getUi().showModalDialog(
