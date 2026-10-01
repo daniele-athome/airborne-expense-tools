@@ -17,6 +17,7 @@ spese condivise di un gruppo di comproprietari.
    | `Dati.gs`              | script |
    | `Ripartizione.gs`      | script |
    | `Setup.gs`             | script |
+   | `Prospetto.gs`         | script |
    | `Sidebar.gs`           | script |
    | `Sidebar-page.html`    | HTML   |
    | `Conguaglio.gs`        | script |
@@ -177,6 +178,48 @@ annulli esattamente la spesa che rimborsa.
 Con `Math.floor`, 100 fra tre dà 34/33/33 ma −100 darebbe −34/−34/−32: rimborsata
 l'intera spesa, Socio1 resterebbe a +2 e gli altri a −1. È la proprietà
 verificata da `testRipartizione()`, su più importi.
+
+## Il prospetto
+
+`Prospetto` è una vista denormalizzata sugli stessi dati: una riga per
+movimento, due colonne per socio — `quota` e `pagato` — e una sola colonna per
+la cassa, che può pagare ma non avere quote a suo carico. Le prime due righe
+sono intestazione: sopra il nome del socio a cavallo delle sue colonne, sotto le
+etichette. Movimenti in ordine di data, annullati in grigio, entrate in verde.
+
+È una **copia in sola lettura**, non una seconda fonte di verità. Il foglio
+viene riscritto per intero a ogni rigenerazione: qualunque modifica fatta lì
+dentro sparisce al salvataggio successivo.
+
+Puoi selezionare una riga del prospetto e usare direttamente Modifica o Annulla
+dal menu: l'`id_spesa` sta in colonna A come in `Spese`.
+
+### Perché valori e non formule
+
+Una cella del prospetto è "quota di Socio2 nel movimento 17", cioè un `SUMIFS` a
+due criteri, e `SUMIFS` non si espande dentro `ARRAYFORMULA`. Servirebbe un
+blocco fisso di migliaia di formule che ricalcolano a ogni tocco del foglio.
+Scrivere valori costa una lettura e una scrittura, e non lascia peso morto.
+
+### Quando si aggiorna, e come accorgersi che è vecchio
+
+La rigenerazione scatta a ogni salvataggio dalla sidebar, a ogni annullamento,
+dopo la compattazione e a ogni `setup`. Resta scoperta la modifica fatta a mano
+direttamente in `Spese`, `Quote` o `Pagamenti`: quella non passa da nessuna
+funzione.
+
+Per questo la riga 1 porta un timbro con data, numero di movimenti e totale
+degli importi **com'erano all'ultima rigenerazione**, e un controllo confronta
+quei due numeri con i dati reali. Se non coincidono, la riga diventa rossa e
+basta lanciare menu → Aggiorna prospetto.
+
+I totali di colonna, se li calcoli, corrispondono alle colonne `dovuto` e
+`pagato` di `Saldi`, non al `saldo`: i giroconti non compaiono nel prospetto,
+perché hanno una forma diversa — da/a, non una riga per movimento.
+
+Un caso che il prospetto non mostra: le righe di `Quote` o `Pagamenti` che
+citano un socio assente da `Anagrafica` non hanno una colonna dove finire, e
+restano invisibili. Esiste già un controllo dedicato a quella anomalia.
 
 ## Come è fatto
 

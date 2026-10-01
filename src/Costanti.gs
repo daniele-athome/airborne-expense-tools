@@ -12,6 +12,7 @@ var FOGLI = {
   QUOTE:      'Quote',
   PAGAMENTI:  'Pagamenti',
   GIROCONTI:  'Giroconti',
+  PROSPETTO:  'Prospetto',
   SALDI:      'Saldi',
   CONTROLLI:  'Controlli',
   LOG:        'Log'

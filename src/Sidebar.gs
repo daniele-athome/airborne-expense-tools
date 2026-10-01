@@ -36,16 +36,20 @@ function idSpesaSelezionata_() {
   var ss = SpreadsheetApp.getActive();
   var ui = SpreadsheetApp.getUi();
   var sh = ss.getActiveSheet();
-  if (sh.getName() !== FOGLI.SPESE) {
-    ui.alert('Seleziona prima una riga nel foglio ' + FOGLI.SPESE + '.');
+  var nome = sh.getName();
+  if (nome !== FOGLI.SPESE && nome !== FOGLI.PROSPETTO) {
+    ui.alert('Seleziona prima una riga nel foglio ' + FOGLI.PROSPETTO +
+             ' o ' + FOGLI.SPESE + '.');
     return null;
   }
+  // Nel Prospetto le intestazioni sono due righe, non una.
+  var primaRiga = (nome === FOGLI.PROSPETTO) ? PROSPETTO_INTESTAZIONI + 1 : 2;
   var riga = sh.getActiveRange().getRow();
-  if (riga < 2) {
-    ui.alert('Seleziona la riga della spesa, non l\'intestazione.');
+  if (riga < primaRiga) {
+    ui.alert('Seleziona la riga del movimento, non l\'intestazione.');
     return null;
   }
-  var id = sh.getRange(riga, COL.SPESE.ID).getValue();
+  var id = sh.getRange(riga, COL.SPESE.ID).getValue();   // id_spesa in colonna A in entrambi
   if (!id) {
     ui.alert('La riga selezionata non contiene un id_spesa.');
     return null;
@@ -138,6 +142,8 @@ function salvaSpesa(payload) {
       shSpese.getRange(riga, 1, 1, testata.length).setValues([testata]);
     }
 
+    rigeneraProspetto_(ss);
+
     scriviLog_(modifica ? 'MODIFICA' : 'INSERIMENTO', id,
       p.descrizione + ' | ' + p.importo.toFixed(2) + ' | ' + p.criterio +
       ' | quote: ' + quote.length + ' | paganti: ' + pagamenti.length);
@@ -201,9 +207,10 @@ function annullaSpesaSelezionata() {
 
 function impostaStatoSpesa_(id, stato) {
   var riga = trovaRigaSpesa_(id);
-  if (!riga) throw new Error('Spesa ' + id + ' non trovata.');
+  if (!riga) throw new Error('Movimento ' + id + ' non trovato.');
   SpreadsheetApp.getActive().getSheetByName(FOGLI.SPESE)
     .getRange(riga, COL.SPESE.STATO).setValue(stato);
+  rigeneraProspetto_();
 }
 
 /* ------------------------------------------------------------------ */

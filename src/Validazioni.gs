@@ -93,6 +93,7 @@ function compattaTabelle() {
     });
 
     SpreadsheetApp.flush();
+    rigeneraProspetto_(ss);
     scriviLog_('COMPATTAZIONE', '', esito.join(' | '));
     ui.alert('Compattazione eseguita', esito.join('\n') +
       '\n\nControlla il foglio Saldi: i totali non devono essere cambiati.',

@@ -106,6 +106,8 @@ function onOpen() {
     .addItem('Modifica movimento selezionato...', 'apriSidebarModifica')
     .addItem('Annulla movimento selezionato', 'annullaSpesaSelezionata')
     .addSeparator()
+    .addItem('Aggiorna prospetto', 'aggiornaProspetto')
+    .addSeparator()
     .addItem('Calcola conguaglio...', 'mostraConguaglio')
     .addItem('Verifica integrita', 'verificaIntegrita')
     .addItem('Ripristina colonne calcolate', 'ripristinaColonneCalcolate')
@@ -130,6 +132,7 @@ function setup() {
   costruisciGiroconti_(ss);
   costruisciSaldi_(ss);
   costruisciControlli_(ss);
+  rigeneraProspetto_(ss);
   costruisciLog_(ss);
   costruisciIntervalliConNome_(ss);
   ordinaFogli_(ss);
@@ -619,6 +622,15 @@ function costruisciControlli_(ss) {
     // ripartizione lavora in centesimi interi e divide per 100 solo alla fine.
     // I giroconti pero' si digitano a mano, ed e' l'unico punto in cui un
     // importo con piu' di due decimali entra dalla porta principale.
+    // Il prospetto e' una copia: viene rigenerato a ogni salvataggio, ma una
+    // modifica fatta a mano in Spese o Quote non passa da nessuna funzione.
+    // Il timbro in riga 1 porta i numeri com'erano all'ultima rigenerazione:
+    // se non coincidono piu' con i dati reali, il prospetto e' vecchio.
+    ['Prospetto non aggiornato: rilancia Aggiorna prospetto',
+     '=IF(N(' + FOGLI.PROSPETTO + '!$E$1)<>SUMPRODUCT((' + sID + '<>"")*1)~1~0)' +
+     '+IF(ROUND(N(' + FOGLI.PROSPETTO + '!$G$1)~2)<>' +
+     'ROUND(SUMPRODUCT((' + sID + '<>"")*N(' + sImporto + '))~2)~1~0)'],
+
     ['Importi con piu\' di due decimali',
      '=SUMPRODUCT((' + sID + '<>"")*(ROUND(N(' + sImporto + ')~2)<>N(' + sImporto + ')))' +
      '+SUMPRODUCT((' + gData + '<>"")*(ROUND(N(' + gImporto + ')~2)<>N(' + gImporto + ')))' +
@@ -707,9 +719,9 @@ function costruisciIntervalliConNome_(ss) {
 }
 
 function ordinaFogli_(ss) {
-  var ordine = [FOGLI.SPESE, FOGLI.QUOTE, FOGLI.PAGAMENTI, FOGLI.GIROCONTI,
-                FOGLI.SALDI, FOGLI.CONTROLLI, FOGLI.ANAGRAFICA,
-                FOGLI.METADATI, FOGLI.LOG];
+  var ordine = [FOGLI.PROSPETTO, FOGLI.SPESE, FOGLI.QUOTE, FOGLI.PAGAMENTI,
+                FOGLI.GIROCONTI, FOGLI.SALDI, FOGLI.CONTROLLI,
+                FOGLI.ANAGRAFICA, FOGLI.METADATI, FOGLI.LOG];
   for (var i = 0; i < ordine.length; i++) {
     var sh = ss.getSheetByName(ordine[i]);
     if (!sh) continue;
