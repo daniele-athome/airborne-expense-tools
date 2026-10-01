@@ -11,19 +11,25 @@ spese condivise di un gruppo di comproprietari.
 3. Crea un file per ciascuno di questi, con lo stesso nome, e incolla il
    contenuto:
 
-   | File nell'editor | Tipo |
-   |---|---|
-   | `Costanti.gs` | script |
-   | `Dati.gs` | script |
-   | `Ripartizione.gs` | script |
-   | `Setup.gs` | script |
-   | `Sidebar.gs` | script |
-   | `Sidebar.html` | HTML |
-   | `Conguaglio.gs` | script |
-   | `Conguaglio.html` | HTML |
-   | `Validazioni.gs` | script |
+   | File nell'editor       | Tipo   |
+   |------------------------|--------|
+   | `Costanti.gs`          | script |
+   | `Dati.gs`              | script |
+   | `Ripartizione.gs`      | script |
+   | `Setup.gs`             | script |
+   | `Prospetto.gs`         | script |
+   | `Sidebar.gs`           | script |
+   | `Sidebar-page.html`    | HTML   |
+   | `Conguaglio.gs`        | script |
+   | `Conguaglio-page.html` | HTML   |
+   | `Validazioni.gs`       | script |
 
    Puoi eliminare il `Codice.gs` creato in automatico.
+
+   Il suffisso `-page` sui due file HTML non è decorativo: Apps Script non
+   ammette due file con lo stesso nome, nemmeno di estensione diversa, quindi
+   `Sidebar.gs` e `Sidebar.html` non possono coesistere. I nomi vanno rispettati
+   alla lettera, perché `createTemplateFromFile()` li cerca così.
 
 4. Seleziona la funzione `setup` e premi Esegui. Alla prima esecuzione Google
    chiede l'autorizzazione: serve perché lo script legge e scrive il foglio e
@@ -43,11 +49,11 @@ solo le chiavi che mancano.
 
 Nel foglio `Metadati`, colonna A la chiave, colonna B il valore:
 
-| chiave | default | significato |
-|---|---|---|
-| `socio_arrotondamento` | `Socio1` | riceve il resto di ogni divisione |
-| `nome_cassa` | `CASSA` | `id_socio` del fondo comune in Anagrafica |
-| `data_min` | 2026-01-01 | data più antica accettata |
+| chiave                 | default    | significato                               |
+|------------------------|------------|-------------------------------------------|
+| `socio_arrotondamento` | `Socio1`   | riceve il resto di ogni divisione         |
+| `nome_cassa`           | `CASSA`    | `id_socio` del fondo comune in Anagrafica |
+| `data_min`             | 2026-01-01 | data più antica accettata                 |
 
 In `Anagrafica` rinomina i soci nella colonna `nome`: la colonna `id_socio` è
 la chiave usata da tutte le altre tabelle, quindi conviene lasciarla stabile e
@@ -173,6 +179,48 @@ Con `Math.floor`, 100 fra tre dà 34/33/33 ma −100 darebbe −34/−34/−32: 
 l'intera spesa, Socio1 resterebbe a +2 e gli altri a −1. È la proprietà
 verificata da `testRipartizione()`, su più importi.
 
+## Il prospetto
+
+`Prospetto` è una vista denormalizzata sugli stessi dati: una riga per
+movimento, due colonne per socio — `quota` e `pagato` — e una sola colonna per
+la cassa, che può pagare ma non avere quote a suo carico. Le prime due righe
+sono intestazione: sopra il nome del socio a cavallo delle sue colonne, sotto le
+etichette. Movimenti in ordine di data, annullati in grigio, entrate in verde.
+
+È una **copia in sola lettura**, non una seconda fonte di verità. Il foglio
+viene riscritto per intero a ogni rigenerazione: qualunque modifica fatta lì
+dentro sparisce al salvataggio successivo.
+
+Puoi selezionare una riga del prospetto e usare direttamente Modifica o Annulla
+dal menu: l'`id_spesa` sta in colonna A come in `Spese`.
+
+### Perché valori e non formule
+
+Una cella del prospetto è "quota di Socio2 nel movimento 17", cioè un `SUMIFS` a
+due criteri, e `SUMIFS` non si espande dentro `ARRAYFORMULA`. Servirebbe un
+blocco fisso di migliaia di formule che ricalcolano a ogni tocco del foglio.
+Scrivere valori costa una lettura e una scrittura, e non lascia peso morto.
+
+### Quando si aggiorna, e come accorgersi che è vecchio
+
+La rigenerazione scatta a ogni salvataggio dalla sidebar, a ogni annullamento,
+dopo la compattazione e a ogni `setup`. Resta scoperta la modifica fatta a mano
+direttamente in `Spese`, `Quote` o `Pagamenti`: quella non passa da nessuna
+funzione.
+
+Per questo la riga 1 porta un timbro con data, numero di movimenti e totale
+degli importi **com'erano all'ultima rigenerazione**, e un controllo confronta
+quei due numeri con i dati reali. Se non coincidono, la riga diventa rossa e
+basta lanciare menu → Aggiorna prospetto.
+
+I totali di colonna, se li calcoli, corrispondono alle colonne `dovuto` e
+`pagato` di `Saldi`, non al `saldo`: i giroconti non compaiono nel prospetto,
+perché hanno una forma diversa — da/a, non una riga per movimento.
+
+Un caso che il prospetto non mostra: le righe di `Quote` o `Pagamenti` che
+citano un socio assente da `Anagrafica` non hanno una colonna dove finire, e
+restano invisibili. Esiste già un controllo dedicato a quella anomalia.
+
 ## Come è fatto
 
 Tre concetti tenuti separati: quanto costa (`Spese`), chi lo deve (`Quote`),
@@ -229,6 +277,34 @@ in ordine di `Anagrafica`, e la sidebar lo segnala con un avviso giallo. È
 l'unica regola del sistema che non discende dalla configurazione: se preferisci
 un comportamento diverso (rifiutare la spesa, o chiedere a chi assegnarlo), si
 cambia in `calcolaQuote_`.
+
+## Aritmetica e arrotondamenti
+
+Google Sheets usa doppia precisione IEEE 754, e i residui **sopravvivono ai
+confronti**: la pulizia a quindici cifre significative agisce sulla
+visualizzazione, non sulla semantica degli operatori. Verificato direttamente
+sul foglio:
+
+| formula                        | risultato                                               |
+|--------------------------------|---------------------------------------------------------|
+| `=(2^53+1)=2^53`               | `TRUE` — mantissa a 53 bit, nessuna aritmetica decimale |
+| `=(1/10+2/10-3/10)=0`          | `FALSE` — il residuo di 5,55e-17 non viene assorbito    |
+| `=SUM(10.000 volte 1/100)=100` | `FALSE`                                                 |
+| `=SUM(10.000 volte 1/100)-100` | 1,4e-11 — l'errore cresce con gli addendi               |
+
+Di qui due scelte:
+
+**I confronti dei controlli passano tutti da `ROUND(...; 2)`.** Non è
+uniformità stilistica: un `<0` o un `=0` secco farebbe scattare il controllo
+sulla giacenza su una cassa perfettamente vuota. Il margine è ampio — per
+portare l'errore accumulato da 1,4e-11 a mezzo centesimo servirebbero otto
+ordini di grandezza in più di operazioni.
+
+**Il calcolo delle quote avviene in centesimi interi**, e divide per 100 solo
+alla fine. I valori scritti in `Quote` e `Pagamenti` sono quindi puliti per
+costruzione, e il residuo non si accumula mai attraverso le registrazioni.
+Resta scoperto solo ciò che si digita a mano — i giroconti — e per quello c'è
+il controllo sugli importi con più di due decimali.
 
 ## Test
 
