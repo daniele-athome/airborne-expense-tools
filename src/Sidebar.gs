@@ -25,7 +25,9 @@ function mostraSidebar_(idSpesa) {
   // Sidebar.html non potrebbero coesistere.
   var t = HtmlService.createTemplateFromFile('Sidebar-page');
   t.idSpesa = idSpesa || '';
-  t.web = false;          // il template lo legge: una variabile assente lo farebbe fallire
+  // Il template legge web e urlBase: una variabile assente lo farebbe fallire.
+  t.web = false;
+  t.urlBase = '';
   var html = t.evaluate()
     .setTitle(idSpesa ? 'Modifica spesa ' + idSpesa : 'Nuova spesa')
     .setWidth(360);
@@ -77,11 +79,58 @@ function getDatiIniziali(idSpesa) {
     oggi: formattaData_(new Date()),
     soci: partecipabili,          // possono avere quote
     paganti: soci,                // possono pagare, cassa compresa
-    spesa: null
+    spesa: null,
+    blocco: ''                    // motivo per cui il movimento non si modifica
   };
 
-  if (idSpesa) out.spesa = leggiSpesa_(Number(idSpesa));
+  if (idSpesa) {
+    out.spesa = leggiSpesa_(Number(idSpesa));
+    out.blocco = motivoBloccoModifica_(out.spesa);
+  }
   return out;
+}
+
+/**
+ * Perche' un movimento esistente non si puo' modificare, oppure ''.
+ *
+ * Due casi, entrambi capaci di falsare la contabilita' senza errori:
+ *
+ * - ANNULLATA: salvaSpesa() riscrive la testata con stato OK, quindi
+ *   salvare una modifica riattiverebbe il movimento senza dirlo. La
+ *   riattivazione e' un gesto esplicito, dal menu.
+ * - un socio non piu' attivo fra quote o pagamenti: il modulo mostra solo i
+ *   soci attivi, la sua casella non esiste e la sua quota non verrebbe
+ *   rimandata. Il movimento sarebbe ripartito di nuovo senza di lui,
+ *   riscrivendo una ripartizione storica.
+ *
+ * Usata due volte: da getDatiIniziali() per aprire il modulo in sola
+ * lettura, e da salvaSpesa() perche' il blocco non si aggiri con un URL o un
+ * payload costruiti a mano.
+ *
+ * @param {Object} spesa  come restituita da leggiSpesa_()
+ * @return {string}
+ */
+function motivoBloccoModifica_(spesa) {
+  if (spesa.stato === 'ANNULLATA') {
+    return 'Movimento annullato: per modificarlo, riattivalo prima dal foglio ' +
+      '(menu Spese aereo, Annulla movimento selezionato).';
+  }
+
+  var attivi = insiemeSoci_(true);
+  var nomi = insiemeSoci_(false);
+  var assenti = [];
+  spesa.quote.map(function (q) { return q.socio; })
+    .concat(spesa.pagamenti.map(function (p) { return p.pagante; }))
+    .forEach(function (id) {
+      if (!attivi[id] && assenti.indexOf(id) === -1) assenti.push(id);
+    });
+
+  if (assenti.length) {
+    return 'Il movimento coinvolge soci non piu\' attivi (' +
+      assenti.map(function (id) { return nomi[id] || id; }).join(', ') +
+      '): modificarlo ne cambierebbe la ripartizione storica.';
+  }
+  return '';
 }
 
 /**
@@ -99,6 +148,13 @@ function salvaSpesa(payload) {
   }
 
   try {
+    // Prima di normalizzaPayload_(): per un movimento bloccato il motivo vero
+    // e' questo, non l'errore di validazione che il payload produrrebbe.
+    if (payload && payload.id) {
+      var blocco = motivoBloccoModifica_(leggiSpesa_(Number(payload.id)));
+      if (blocco) throw new Error(blocco);
+    }
+
     var cfg = leggiConfigurazione_();
     var p = normalizzaPayload_(payload, cfg);
 

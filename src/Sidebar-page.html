@@ -160,7 +160,7 @@
      mobili quando un campo prende il fuoco. */
   body.web {
     font-size: 16px;
-    padding: 16px 16px 200px 16px;
+    padding: 16px 16px 250px 16px;
     max-width: 560px;
     margin: 0 auto;
   }
@@ -185,9 +185,26 @@
     padding: 10px max(16px, calc((100% - 528px) / 2)) 16px;
   }
   body.web #chiudi { display: none; }
+
+  /* Navigazione fra le pagine della web app: in sidebar non c'e'. */
+  .nav { margin: 0 0 14px 0; }
+  .nav a, a.torna { color: var(--azione); }
+  a.torna {
+    display: block;
+    text-align: center;
+    padding: 10px;
+    margin-top: 6px;
+    border: 1px solid var(--riga);
+    border-radius: 3px;
+    text-decoration: none;
+  }
 </style>
 </head>
 <body class="<?= web ? 'web' : '' ?>">
+
+<? if (web) { ?>
+  <nav class="nav"><a href="<?= urlBase ?>">&larr; Elenco movimenti</a></nav>
+<? } ?>
 
 <div id="caricamento" class="caricamento">Carico l'anagrafica...</div>
 
@@ -195,6 +212,8 @@
 
   <h1 id="titolo">Nuova spesa</h1>
   <p class="sottotitolo" id="sottotitolo">Quote e pagamenti vengono scritti insieme alla testata.</p>
+  <!-- Fuori dal piede apposta: aggiorna() ripulisce #messaggio a ogni tocco. -->
+  <div id="blocco" class="messaggio"></div>
 
   <fieldset>
     <label class="campo">
@@ -250,6 +269,9 @@
     </div>
     <button type="button" class="principale" id="salva" disabled>Salva</button>
     <button type="button" class="secondaria" id="chiudi">Chiudi</button>
+    <? if (web) { ?>
+      <a class="torna" id="torna" href="<?= urlBase ?>" style="display:none">Torna all'elenco</a>
+    <? } ?>
   </div>
 
 </div>
@@ -399,6 +421,23 @@ function costruisci() {
   applicaCriterio();
   disegnaPagamenti();
   aggiorna();
+  if (DATI.blocco) bloccaModulo(DATI.blocco);
+}
+
+/**
+ * Sola lettura: il movimento si vede ma non si salva. E' solo cortesia, il
+ * blocco vero sta in salvaSpesa(), che rifiuta comunque il salvataggio.
+ */
+function bloccaModulo(motivo) {
+  el('blocco').className = 'messaggio avviso';
+  el('blocco').textContent = motivo;
+  el('sottotitolo').textContent = 'Sola lettura.';
+  document.querySelectorAll('#pannello input, #pannello select, #pannello textarea, ' +
+                            '#pannello button:not(#chiudi)')
+    .forEach(function (c) { c.disabled = true; });
+  el('salva').style.display = 'none';
+  var torna = el('torna');
+  if (torna) torna.style.display = 'block';
 }
 
 function collegaEventi() {
@@ -617,6 +656,8 @@ function salva() {
       var testo;
       if (r.modifica) {
         testo = 'Movimento ' + r.id + ' aggiornato.';
+        var torna = el('torna');          // solo nella web app
+        if (torna) torna.style.display = 'block';
       } else {
         testo = 'Movimento ' + r.id + ' registrato. Ne puoi inserire un altro.';
         el('descrizione').value = '';

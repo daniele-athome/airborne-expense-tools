@@ -24,6 +24,7 @@ spese condivise di un gruppo di comproprietari.
    | `Conguaglio-page.html` | HTML   |
    | `Validazioni.gs`       | script |
    | `Web.gs`               | script |
+   | `Elenco-page.html`     | HTML   |
 
    Puoi eliminare il `Codice.gs` creato in automatico.
 
@@ -71,6 +72,16 @@ non quadra tutto.
 Modifica movimento selezionato. Quote e pagamenti vengono cancellati e
 riscritti da capo.
 
+Due tipi di movimento si aprono in sola lettura, sia dal foglio sia dal
+telefono:
+
+- **gli annullati**: salvare una modifica li riattiverebbe. Prima si
+  riattivano col comando Annulla, poi si modificano;
+- **quelli che coinvolgono un socio non più attivo**: il modulo mostra solo i
+  soci attivi, e salvando la sua quota sparirebbe, ripartendo di nuovo una
+  spesa storica. Se serve davvero correggerlo, riattiva temporaneamente il
+  socio in `Anagrafica`.
+
 **Annullare.** Seleziona la riga, menu → Annulla movimento selezionato. Lo stato
 passa a `ANNULLATA`: la spesa esce dai saldi ma resta leggibile e il
 progressivo non si buca. Dallo stesso comando la si può riattivare.
@@ -88,11 +99,17 @@ integrità legge lo stesso foglio e ne riassume l'esito in una finestra.
 ## Dal telefono
 
 L'app Google Sheets per Android non mostra il menu **Spese aereo**, né la
-sidebar. Per registrare un movimento dal telefono c'è una pagina web che usa lo
-stesso modulo della sidebar, con le stesse verifiche: si apre nel browser.
+sidebar. Per il telefono c'è una piccola app web che si apre nel browser e usa
+lo stesso modulo della sidebar, con le stesse verifiche.
 
-Dal telefono si possono solo **inserire movimenti nuovi**. Modifica,
-annullamento, conguaglio e giroconti restano nel foglio, dal computer.
+La pagina iniziale è l'**elenco dei movimenti**, dal più recente, con data,
+descrizione e importo; le entrate sono in verde. La casella in alto filtra per
+descrizione mentre scrivi. Un tap su un movimento apre il modulo di modifica;
+il pulsante **Nuovo movimento** apre il modulo vuoto. L'elenco mostra solo i
+movimenti attivi: gli annullati non compaiono.
+
+Annullamento, riattivazione, conguaglio e giroconti restano nel foglio, dal
+computer.
 
 **Pubblicarla (una volta, a cura di chi gestisce lo script).** Nell'editor Apps
 Script: Esegui il deployment → Nuovo deployment → tipo *App web*, con *Esegui

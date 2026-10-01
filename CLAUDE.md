@@ -34,9 +34,10 @@ di prova separato.
 | `Prospetto.gs`         | `aggiornaProspetto()` (menu), `rigeneraProspetto_()` e il wrapper `rigeneraProspettoSicuro_()`: riscrive da zero la vista denormalizzata (una riga per movimento, colonne `quota`/`pagato` per socio, solo `pagato` per la cassa), il timbro in riga 1 e la formattazione. `PROSPETTO_INTESTAZIONI` = 2 righe di intestazione; `COL_TIMBRO` dà le colonne del timbro, lette anche dal controllo in `Setup.gs`. |
 | `Dati.gs`              | Accesso ai fogli: lettura di `Metadati` e `Anagrafica`, `prossimoIdSpesa_()`, lettura/cancellazione/accodamento delle righe figlie, `ultimaRigaDati_()`, `lockScritture_()`, `scriviLog_()`, conversione date.                                              |
 | `Ripartizione.gs`      | Logica **pura** (nessun accesso al foglio): `calcolaQuote_()`, `quoteManuali_()`, `validaPagamenti_()`, conversioni `inCentesimi_()`/`inEuro_()`.                                                                                                            |
-| `Sidebar.gs`           | Lato server della sidebar: apertura, `getDatiIniziali()`, `salvaSpesa()`, `normalizzaPayload_()`, annullamento/riattivazione, `ripristinaColonneCalcolate()`.                                                                                             |
-| `Sidebar-page.html`    | Template HTML del modulo di inserimento e modifica, servito sia come sidebar sia come web app (variabile di template `web`, obbligatoria in entrambi i casi: aggiunge la classe `web` al `body`, con lo stile per il telefono, e nasconde *Chiudi*). `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima. |
-| `Web.gs`               | `doGet()`: serve `Sidebar-page` per il solo inserimento di movimenti nuovi, ignorando i parametri dell'URL.                                                                                                                                                |
+| `Sidebar.gs`           | Lato server del modulo: apertura della sidebar, `getDatiIniziali()`, `salvaSpesa()`, `motivoBloccoModifica_()`, `normalizzaPayload_()`, annullamento/riattivazione, `ripristinaColonneCalcolate()`.                                                         |
+| `Sidebar-page.html`    | Template HTML del modulo di inserimento e modifica, servito sia come sidebar sia come web app. Variabili di template `idSpesa`, `web` e `urlBase`, **obbligatorie in entrambi i casi** (una variabile assente fa fallire il template). Con `web` il `body` prende la classe `web` (stile per il telefono), *Chiudi* sparisce e compaiono i link all'elenco. `bloccaModulo()` lo mette in sola lettura. `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima. |
+| `Web.gs`               | `doGet(e)`: instrada fra elenco (`/exec`), modifica (`?id=N`) e nuovo movimento (`?nuovo=1`); `elencoMovimenti_()` e `formattaEuro_()` per l'elenco.                                                                                                      |
+| `Elenco-page.html`     | Elenco dei movimenti attivi per la web app, generato lato server negli scriptlet, con ricerca client-side sulla descrizione.                                                                                                                              |
 | `Conguaglio.gs`        | Calcolo greedy del minor numero di bonifici (`calcolaConguaglio_()`, in centesimi) e scrittura in `Giroconti`.                                                                                                                                             |
 | `Conguaglio-page.html` | Dialog modale del conguaglio, template con scriptlet `<? ?>`.                                                                                                                                                                                             |
 | `Validazioni.gs`       | `verificaIntegrita()` (riassume il foglio `Controlli`), `compattaTabelle()`, e `testRipartizione()`.                                                                                                                                                      |
@@ -101,6 +102,13 @@ Regole di scrittura che reggono la contabilità:
   `lockScritture_()`, mai da `LockService` direttamente.
 - **In modifica si cancellano e riscrivono tutte le righe figlie**, mai patch
   riga per riga.
+- **Due movimenti non si modificano: gli annullati e quelli con un socio non
+  più attivo fra quote o pagamenti** (`motivoBloccoModifica_()`). Nel primo
+  caso il salvataggio, che scrive sempre `stato = OK`, li riattiverebbe in
+  silenzio. Nel secondo il modulo, che mostra solo i soci attivi, farebbe
+  sparire la quota del socio uscito. Il controllo sta sia in
+  `getDatiIniziali()` (modulo in sola lettura) sia in `salvaSpesa()`, prima di
+  toccare qualsiasi riga: quello lato client è solo cortesia.
 - **Annullare è `stato = ANNULLATA`, mai cancellare righe.** La colonna
   `valida` esclude il movimento dai saldi; l'`id_spesa` è `MAX + 1` e non deve
   avere buchi né essere riusato. Lo stesso vale per gli `id_socio`.
@@ -221,9 +229,19 @@ telefono.
 
 Decisioni prese, da non rimettere in discussione:
 
-- **Solo inserimento di movimenti nuovi.** Modifica, annullamento, saldi e
-  conguaglio restano nel foglio. `doGet()` ignora i parametri dell'URL e non
-  accetta un `id_spesa`.
+- **Tre pagine separate, scelte da `doGet(e)` in base all'URL**: elenco dei
+  movimenti attivi (`/exec`, pagina iniziale), modulo in modifica
+  (`?id=N`) e modulo vuoto (`?nuovo=1`). Pagine separate e non una pagina
+  unica: il modulo si costruisce una volta sola e non sa reinizializzarsi su
+  un altro movimento, e così il tasto indietro di Android funziona da solo.
+  Un `id` inesistente riporta all'elenco con un avviso.
+- **Dal telefono si inserisce e si modifica, nient'altro.** Annullamento,
+  riattivazione, saldi e conguaglio restano nel foglio. L'elenco nasconde gli
+  annullati.
+- **I link fra le pagine usano l'URL completo** da
+  `ScriptApp.getService().getUrl()`: la pagina gira in un iframe su un
+  dominio diverso, e un link relativo non tornerebbe alla web app. Ogni link
+  deve avere `target="_top"` (lo dà il `<base>` nei template).
 - **Esegue come l'utente che accede, accesso a chiunque abbia un account
   Google** (`webapp` in `appsscript.json`). Il filtro vero è la condivisione
   del foglio: chi non lo ha in modifica non legge né scrive niente. Il `Log`
@@ -238,8 +256,8 @@ Decisioni prese, da non rimettere in discussione:
   farlo decadere. Gli altri due scope dichiarati sono `script.container.ui`
   (sidebar, dialog, menu) e `userinfo.email` (`scriviLog_()`).
 
-Vincoli per tutto ciò che è raggiungibile dalla web app (`getDatiIniziali()`,
-`salvaSpesa()` e ciò che chiamano):
+Vincoli per tutto ciò che è raggiungibile dalla web app (`doGet()`,
+`getDatiIniziali()`, `salvaSpesa()` e ciò che chiamano):
 
 - **Niente `SpreadsheetApp.getUi()`**, che fuori dal foglio non esiste. Oggi
   lo usano solo funzioni di menu (`mostraSidebar_()`, `idSpesaSelezionata_()`,
@@ -254,7 +272,14 @@ Vincoli per tutto ciò che è raggiungibile dalla web app (`getDatiIniziali()`,
 - Nel template, `google.script.host.close()` esiste solo in sidebar e dialog:
   in modalità web il pulsante *Chiudi* è nascosto via CSS.
 - I meta tag scritti nel template vengono ignorati da `HtmlService`: il
-  viewport è impostato in `doGet()` con `addMetaTag()`.
+  viewport è impostato in `paginaWeb_()` con `addMetaTag()`.
+- Il testo che viene dal foglio (descrizioni, nomi) deve entrare nelle pagine
+  da scriptlet `<?= ?>`, che fanno l'escape, o da `textContent`; mai da
+  `<?!= ?>`. `Elenco-page.html` lo rispetta. **Eccezione nota:**
+  `Sidebar-page.html` costruisce partecipanti, paganti e anteprima con
+  `innerHTML`, e ci finiscono i nomi di `Anagrafica`. Il rischio è basso
+  (l'anagrafica la scrivono i soci), ma non va esteso: le descrizioni dei
+  movimenti, che sono testo libero, non devono mai passare da `innerHTML`.
 
 **Deployment.** Un deployment è legato a una versione: `clasp push` non
 aggiorna la web app pubblicata. Dopo ogni modifica va rilasciata una nuova
