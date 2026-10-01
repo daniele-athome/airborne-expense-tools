@@ -32,14 +32,15 @@ di prova separato.
 | `Costanti.gs`          | `FOGLI`, `INTESTAZIONI`, `COL` (indici 1-based), chiavi e default di `Metadati`, `CRITERI`, `TIPI`, `STATI`, `RIGHE_SALDI`, `LOCK_MS`. Aggiungere una colonna significa toccare `INTESTAZIONI` e `COL` insieme.                                           |
 | `Setup.gs`             | `onOpen()` (menu *Spese aereo*), `setup()` idempotente, costruzione di ogni foglio, formule di `valida`, `Saldi` e `Controlli`; alla fine rigenera anche il `Prospetto`. Contiene gli helper di formula `f_()`, `separatoreArgomenti_()`, `lettera_()`, `colonna_()`, `cella_()`, `riferimentoMeta_()`, `proteggiConAvviso_()` e la migrazione `migraSpeseTipo_()`. |
 | `Prospetto.gs`         | `aggiornaProspetto()` (menu), `rigeneraProspetto_()` e il wrapper `rigeneraProspettoSicuro_()`: riscrive da zero la vista denormalizzata (una riga per movimento, colonne `quota`/`pagato` per socio, solo `pagato` per la cassa), il timbro in riga 1 e la formattazione. `PROSPETTO_INTESTAZIONI` = 2 righe di intestazione; `COL_TIMBRO` dà le colonne del timbro, lette anche dal controllo in `Setup.gs`. |
-| `Dati.gs`              | Accesso ai fogli: lettura di `Metadati` e `Anagrafica`, `prossimoIdSpesa_()`, lettura/cancellazione/accodamento delle righe figlie, `ultimaRigaDati_()`, `scriviLog_()`, conversione date.                                                                  |
+| `Dati.gs`              | Accesso ai fogli: lettura di `Metadati` e `Anagrafica`, `prossimoIdSpesa_()`, lettura/cancellazione/accodamento delle righe figlie, `ultimaRigaDati_()`, `lockScritture_()`, `scriviLog_()`, conversione date.                                              |
 | `Ripartizione.gs`      | Logica **pura** (nessun accesso al foglio): `calcolaQuote_()`, `quoteManuali_()`, `validaPagamenti_()`, conversioni `inCentesimi_()`/`inEuro_()`.                                                                                                            |
 | `Sidebar.gs`           | Lato server della sidebar: apertura, `getDatiIniziali()`, `salvaSpesa()`, `normalizzaPayload_()`, annullamento/riattivazione, `ripristinaColonneCalcolate()`.                                                                                             |
-| `Sidebar-page.html`    | Template HTML della sidebar di inserimento e modifica. `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima.                                                                                                        |
+| `Sidebar-page.html`    | Template HTML del modulo di inserimento e modifica, servito sia come sidebar sia come web app (variabile di template `web`, obbligatoria in entrambi i casi: aggiunge la classe `web` al `body`, con lo stile per il telefono, e nasconde *Chiudi*). `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima. |
+| `Web.gs`               | `doGet()`: serve `Sidebar-page` per il solo inserimento di movimenti nuovi, ignorando i parametri dell'URL.                                                                                                                                                |
 | `Conguaglio.gs`        | Calcolo greedy del minor numero di bonifici (`calcolaConguaglio_()`, in centesimi) e scrittura in `Giroconti`.                                                                                                                                             |
 | `Conguaglio-page.html` | Dialog modale del conguaglio, template con scriptlet `<? ?>`.                                                                                                                                                                                             |
 | `Validazioni.gs`       | `verificaIntegrita()` (riassume il foglio `Controlli`), `compattaTabelle()`, e `testRipartizione()`.                                                                                                                                                      |
-| `appsscript.json`      | Manifest: fuso `Europe/Rome`, runtime V8, scope OAuth dichiarati esplicitamente.                                                                                                                                                                          |
+| `appsscript.json`      | Manifest: fuso `Europe/Rome`, runtime V8, scope OAuth dichiarati esplicitamente, impostazioni della web app (`USER_ACCESSING`, `ANYONE`).                                                                                                                  |
 
 Il manuale d'uso è il `README.md` alla radice, fuori da `src/` e quindi non
 spinto da `clasp`. Quando si aggiunge un file sorgente va aggiunto anche alla
@@ -92,9 +93,12 @@ Regole di scrittura che reggono la contabilità:
 - **Le quote sono righe scritte, non formule**: vanno congelate al momento
   della decisione, altrimenti un cambio di `Anagrafica` riscriverebbe la
   ripartizione di spese già conguagliate.
-- **Ordine figli-poi-testata, sotto `LockService.getDocumentLock()`.** Uno
-  script interrotto lascia righe orfane (segnalate dai controlli e fuori dai
-  saldi) invece di una spesa con quote incomplete.
+- **Ordine figli-poi-testata, sotto `lockScritture_()`.** Uno script
+  interrotto lascia righe orfane (segnalate dai controlli e fuori dai saldi)
+  invece di una spesa con quote incomplete. Il lock è uno script lock, non un
+  document lock: dalla web app `getDocumentLock()` può restituire `null`, e i
+  due sono lock distinti. Ogni nuovo punto di scrittura deve passare da
+  `lockScritture_()`, mai da `LockService` direttamente.
 - **In modifica si cancellano e riscrivono tutte le righe figlie**, mai patch
   riga per riga.
 - **Annullare è `stato = ANNULLATA`, mai cancellare righe.** La colonna
@@ -208,40 +212,52 @@ Le motivazioni non ovvie vanno nel commento **accanto al codice**, non nel
 messaggio di commit e non in una conversazione. Il criterio: se qualcuno fra sei
 mesi potrebbe "semplificare" quella riga, serve il commento.
 
-## Lavoro in corso: accesso da mobile
+## Accesso da mobile: web app
 
 L'app Google Sheets per Android non esegue menu personalizzati, sidebar né
-dialog di Apps Script. La direzione scelta è esporre l'interfaccia come **web
-app** (`doGet()` che serve gli stessi template HTML della sidebar), raggiungibile
-dal browser del telefono.
+dialog di Apps Script. Per questo `doGet()` in `Web.gs` serve lo stesso
+template della sidebar come **web app**, raggiungibile dal browser del
+telefono.
 
-Due punti già chiariti, da non rimettere in discussione:
+Decisioni prese, da non rimettere in discussione:
 
+- **Solo inserimento di movimenti nuovi.** Modifica, annullamento, saldi e
+  conguaglio restano nel foglio. `doGet()` ignora i parametri dell'URL e non
+  accetta un `id_spesa`.
+- **Esegue come l'utente che accede, accesso a chiunque abbia un account
+  Google** (`webapp` in `appsscript.json`). Il filtro vero è la condivisione
+  del foglio: chi non lo ha in modifica non legge né scrive niente. Il `Log`
+  registra l'email di chi inserisce; eseguendo come proprietario, con account
+  Gmail personali `Session.getActiveUser()` restituirebbe vuoto.
 - `SpreadsheetApp.getActive()` **funziona** nel `doGet()` di uno script bound: il
   binding è statico e non dipende dal documento aperto. Non serve `openById()`.
 - Lo scope giusto è `https://www.googleapis.com/auth/spreadsheets.currentonly`,
   dichiarato esplicitamente in `appsscript.json` e non lasciato dedurre
   all'annotazione `@OnlyCurrentDoc`. Attenzione: vale per l'intero progetto, e
   basta un uso di `DriveApp`, `openById()` o del servizio avanzato Sheets per
-  farlo decadere.
+  farlo decadere. Gli altri due scope dichiarati sono `script.container.ui`
+  (sidebar, dialog, menu) e `userinfo.email` (`scriviLog_()`).
 
-Stato attuale del codice rispetto a questo obiettivo (nessun `doGet()` esiste
-ancora). Punti che un `doGet()` dovrà aggirare:
+Vincoli per tutto ciò che è raggiungibile dalla web app (`getDatiIniziali()`,
+`salvaSpesa()` e ciò che chiamano):
 
-- `appsscript.json` dichiara già `spreadsheets.currentonly`, più
-  `script.container.ui` (sidebar, dialog, menu) e `userinfo.email`
-  (`Session.getActiveUser()` in `scriviLog_()`).
-- `SpreadsheetApp.getUi()` non è disponibile fuori dal contesto del foglio:
-  lo usano `mostraSidebar_()`, `idSpesaSelezionata_()`,
+- **Niente `SpreadsheetApp.getUi()`**, che fuori dal foglio non esiste. Oggi
+  lo usano solo funzioni di menu (`mostraSidebar_()`, `idSpesaSelezionata_()`,
   `annullaSpesaSelezionata()`, `mostraConguaglio()`, `verificaIntegrita()`,
-  `compattaTabelle()`.
-- Modifica e annullamento ricavano l'`id_spesa` dalla **riga selezionata** nel
-  foglio `Spese` o `Prospetto` (`idSpesaSelezionata_()`); in una web app l'id
-  dovrà arrivare come parametro.
-- I template chiamano `google.script.host.close()`, che esiste solo in sidebar
-  e dialog.
-- Il percorso di salvataggio (`salvaSpesa()` → `rigeneraProspetto_()`) non
-  invoca `separatoreArgomenti_()`: la regola condizionale delle entrate è
-  scritta come prodotto di booleani apposta per non avere argomenti multipli.
-  Va mantenuto così: la sonda crea e cancella un foglio e cambia il foglio
-  attivo, cosa da evitare a ogni salvataggio e a maggior ragione nella web app.
+  `compattaTabelle()`), nessuna raggiungibile dalla web app.
+- **Niente `separatoreArgomenti_()` / `f_()`**: la sonda crea e cancella un
+  foglio e cambia il foglio attivo. Per questo la regola condizionale delle
+  entrate in `formatta_()` (`Prospetto.gs`) è scritta come prodotto di
+  booleani, senza argomenti multipli.
+- **Niente dipendenze dalla selezione o dal foglio attivo.**
+- **Lock solo tramite `lockScritture_()`**, che sidebar e web app condividono.
+- Nel template, `google.script.host.close()` esiste solo in sidebar e dialog:
+  in modalità web il pulsante *Chiudi* è nascosto via CSS.
+- I meta tag scritti nel template vengono ignorati da `HtmlService`: il
+  viewport è impostato in `doGet()` con `addMetaTag()`.
+
+**Deployment.** Un deployment è legato a una versione: `clasp push` non
+aggiorna la web app pubblicata. Dopo ogni modifica va rilasciata una nuova
+versione sullo stesso deployment (`clasp deploy -i <deploymentId>`), così
+l'URL `/exec` già distribuito ai soci resta valido. L'URL `/dev` esegue
+l'ultimo codice salvato, ma solo per chi ha accesso in modifica allo script.

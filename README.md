@@ -23,6 +23,7 @@ spese condivise di un gruppo di comproprietari.
    | `Conguaglio.gs`        | script |
    | `Conguaglio-page.html` | HTML   |
    | `Validazioni.gs`       | script |
+   | `Web.gs`               | script |
 
    Puoi eliminare il `Codice.gs` creato in automatico.
 
@@ -83,6 +84,35 @@ bonifici che azzera tutti i saldi e, se vuoi, li scrive in `Giroconti`.
 
 **Verificare.** Il foglio `Controlli` è sempre aggiornato. Il comando Verifica
 integrità legge lo stesso foglio e ne riassume l'esito in una finestra.
+
+## Dal telefono
+
+L'app Google Sheets per Android non mostra il menu **Spese aereo**, né la
+sidebar. Per registrare un movimento dal telefono c'è una pagina web che usa lo
+stesso modulo della sidebar, con le stesse verifiche: si apre nel browser.
+
+Dal telefono si possono solo **inserire movimenti nuovi**. Modifica,
+annullamento, conguaglio e giroconti restano nel foglio, dal computer.
+
+**Pubblicarla (una volta, a cura di chi gestisce lo script).** Nell'editor Apps
+Script: Esegui il deployment → Nuovo deployment → tipo *App web*, con *Esegui
+come: utente che accede all'app web* e *Chi ha accesso: chiunque abbia un
+account Google*. Da riga di comando, `clasp deploy` legge le stesse
+impostazioni da `appsscript.json`. L'indirizzo che termina in `/exec` è quello
+da mandare ai soci.
+
+**Dopo ogni modifica al codice il deployment va aggiornato.** Un deployment è
+legato a una versione precisa dello script: `clasp push` aggiorna il foglio, ma
+non la pagina web. Si aggiorna da Gestisci deployment → modifica → *Nuova
+versione*, oppure con `clasp deploy -i <id del deployment>`, che mantiene lo
+stesso indirizzo.
+
+**Chi può usarla.** La pagina gira con l'account di chi la apre, quindi scrive
+solo chi ha il foglio condiviso in modifica: un link inoltrato a un estraneo
+non gli permette di leggere né di scrivere niente. Al primo accesso Google
+chiede a ogni socio di autorizzare lo script, e avverte che l'app non è
+verificata: è normale per uno script privato (Avanzate → Vai a…). Nel `Log`
+ogni movimento risulta con l'email di chi l'ha inserito.
 
 ## Se entra un socio nuovo
 
