@@ -25,6 +25,7 @@ function mostraSidebar_(idSpesa) {
   // Sidebar.html non potrebbero coesistere.
   var t = HtmlService.createTemplateFromFile('Sidebar-page');
   t.idSpesa = idSpesa || '';
+  t.web = false;          // il template lo legge: una variabile assente lo farebbe fallire
   var html = t.evaluate()
     .setTitle(idSpesa ? 'Modifica spesa ' + idSpesa : 'Nuova spesa')
     .setWidth(360);
@@ -92,7 +93,7 @@ function getDatiIniziali(idSpesa) {
  * produrrebbe una spesa con quote incomplete: saldi sbagliati in silenzio.
  */
 function salvaSpesa(payload) {
-  var lock = LockService.getDocumentLock();
+  var lock = lockScritture_();
   if (!lock.tryLock(LOCK_MS)) {
     throw new Error('Un\'altra scrittura e\' in corso. Riprova tra qualche secondo.');
   }

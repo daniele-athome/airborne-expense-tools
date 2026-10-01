@@ -199,6 +199,24 @@ function accodaRighe_(nomeFoglio, righe) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Lock                                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Il lock che serializza tutte le scritture contabili.
+ *
+ * Script lock e non document lock: getDocumentLock() e' pensato per il
+ * contesto del documento aperto e dalla web app (doGet) puo' restituire
+ * null. Il progetto e' legato a un solo foglio, quindi bloccare lo script
+ * equivale a bloccare il documento. Tutti i punti di scrittura devono usare
+ * questa funzione: document lock e script lock sono lock distinti, e
+ * mescolarli lascerebbe sidebar e web app scrivere in contemporanea.
+ */
+function lockScritture_() {
+  return LockService.getScriptLock();
+}
+
+/* ------------------------------------------------------------------ */
 /* Log                                                                 */
 /* ------------------------------------------------------------------ */
 

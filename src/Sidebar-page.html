@@ -154,9 +154,40 @@
   .messaggio.fatto  { display: block; background: #e8f5e9; color: var(--quadra); }
 
   .caricamento { color: var(--attenuato); padding: 20px 0; }
+
+  /* Web app sul telefono: caratteri piu' grandi e bersagli piu' comodi per
+     il dito. 16px nei campi evita anche lo zoom automatico dei browser
+     mobili quando un campo prende il fuoco. */
+  body.web {
+    font-size: 16px;
+    padding: 16px 16px 200px 16px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  body.web h1 { font-size: 20px; }
+  body.web input[type=text], body.web input[type=date],
+  body.web input[type=number], body.web select, body.web textarea {
+    padding: 9px 10px;
+  }
+  body.web input[type=radio], body.web input[type=checkbox] {
+    width: 20px; height: 20px;
+  }
+  body.web .scelta { padding: 4px 0; }
+  body.web table.righe td { padding: 5px 0; }
+  body.web table.righe td.valore { width: 110px; }
+  body.web table.righe td.togli { width: 36px; }
+  body.web button.minimo { font-size: 22px; padding: 4px 8px; }
+  body.web button.testo { padding: 8px 0; }
+  body.web button.principale { padding: 13px; }
+  /* Il piede e' fixed e largo quanto la finestra: lo si allinea alla
+     colonna centrale con il padding, non con max-width. */
+  body.web .piede {
+    padding: 10px max(16px, calc((100% - 528px) / 2)) 16px;
+  }
+  body.web #chiudi { display: none; }
 </style>
 </head>
-<body>
+<body class="<?= web ? 'web' : '' ?>">
 
 <div id="caricamento" class="caricamento">Carico l'anagrafica...</div>
 

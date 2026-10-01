@@ -68,7 +68,7 @@ function compattaTabelle() {
     ui.ButtonSet.YES_NO);
   if (risposta !== ui.Button.YES) return;
 
-  var lock = LockService.getDocumentLock();
+  var lock = lockScritture_();
   if (!lock.tryLock(LOCK_MS)) {
     ui.alert('Un\'altra scrittura e\' in corso. Riprova tra qualche secondo.');
     return;

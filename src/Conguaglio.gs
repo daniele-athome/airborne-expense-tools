@@ -92,7 +92,7 @@ function calcolaConguaglio_() {
  * l'intenzione, non a decidere gli importi.
  */
 function inserisciConguaglioInGiroconti(causale) {
-  var lock = LockService.getDocumentLock();
+  var lock = lockScritture_();
   if (!lock.tryLock(LOCK_MS)) {
     throw new Error('Un\'altra scrittura e\' in corso. Riprova tra qualche secondo.');
   }
