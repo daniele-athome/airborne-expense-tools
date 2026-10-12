@@ -250,3 +250,42 @@ function parsaData_(s) {
   if (!m) throw new Error('Data non valida: ' + s + ' (formato atteso aaaa-mm-gg).');
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
+
+/* ------------------------------------------------------------------ */
+/* Giroconti                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tutti i giroconti, nell'ordine del foglio.
+ *
+ * La fine dei dati si cerca su due colonne e non su una: i giroconti si
+ * digitano a mano, e una riga a cui manca la data verrebbe tagliata fuori
+ * guardando solo `data`. Il suo importo invece conta nei Saldi, quindi
+ * perderla farebbe sballare i totali di questa lettura rispetto al foglio.
+ *
+ * @return {Array<{data: *, da: string, a: string, importo: number, causale: string}>}
+ */
+function leggiGiroconti_() {
+  var sh = SpreadsheetApp.getActive().getSheetByName(FOGLI.GIROCONTI);
+  if (!sh) return [];
+
+  var ultima = Math.max(ultimaRigaDati_(sh, COL.GIROCONTI.DATA),
+                        ultimaRigaDati_(sh, COL.GIROCONTI.DA));
+  if (ultima < 2) return [];
+
+  var valori = sh.getRange(2, 1, ultima - 1, INTESTAZIONI.GIROCONTI.length).getValues();
+  var out = [];
+  for (var i = 0; i < valori.length; i++) {
+    var da = String(valori[i][COL.GIROCONTI.DA - 1]).trim();
+    var a = String(valori[i][COL.GIROCONTI.A - 1]).trim();
+    if (!da && !a) continue;
+    out.push({
+      data: valori[i][COL.GIROCONTI.DATA - 1],
+      da: da,
+      a: a,
+      importo: Number(valori[i][COL.GIROCONTI.IMPORTO - 1]) || 0,
+      causale: String(valori[i][COL.GIROCONTI.CAUSALE - 1] || '')
+    });
+  }
+  return out;
+}

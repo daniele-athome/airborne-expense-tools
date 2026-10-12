@@ -66,6 +66,9 @@
 
   .conteggio { color: var(--attenuato); font-size: 14px; margin: 8px 0 4px 0; }
 
+  .vai { margin: 0 0 12px 0; font-size: 14px; }
+  .vai a { color: var(--azione); text-decoration: none; }
+
   .avviso {
     background: #fff8e1;
     color: #7a5c00;
@@ -109,6 +112,8 @@
   <h1>Movimenti</h1>
   <a class="nuovo" href="<?= urlNuovo ?>">Nuovo movimento</a>
 </div>
+
+<p class="vai"><a href="<?= urlConguaglio ?>">Conguaglio e debiti &rarr;</a></p>
 
 <? if (avviso) { ?>
   <div class="avviso"><?= avviso ?></div>

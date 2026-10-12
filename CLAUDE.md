@@ -36,10 +36,12 @@ di prova separato.
 | `Ripartizione.gs`      | Logica **pura** (nessun accesso al foglio): `calcolaQuote_()`, `quoteManuali_()`, `validaPagamenti_()`, conversioni `inCentesimi_()`/`inEuro_()`.                                                                                                            |
 | `Sidebar.gs`           | Lato server del modulo: apertura della sidebar, `getDatiIniziali()`, `salvaSpesa()`, `motivoBloccoModifica_()`, `normalizzaPayload_()`, annullamento/riattivazione, `ripristinaColonneCalcolate()`.                                                         |
 | `Sidebar-page.html`    | Template HTML del modulo di inserimento e modifica, servito sia come sidebar sia come web app. Variabili di template `idSpesa`, `web` e `urlBase`, **obbligatorie in entrambi i casi** (una variabile assente fa fallire il template). Con `web` il `body` prende la classe `web` (stile per il telefono), *Chiudi* sparisce e compaiono i link all'elenco. `bloccaModulo()` lo mette in sola lettura. `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima. |
-| `Web.gs`               | `doGet(e)`: instrada fra elenco (`/exec`), modifica (`?id=N`) e nuovo movimento (`?nuovo=1`); `elencoMovimenti_()` e `formattaEuro_()` per l'elenco.                                                                                                      |
+| `Web.gs`               | `doGet(e)`: instrada fra elenco (`/exec`), modifica (`?id=N`), nuovo movimento (`?nuovo=1`) e conguaglio (`?conguaglio=1`); `elencoMovimenti_()` e `formattaEuro_()` per l'elenco.                                                                                                      |
 | `Elenco-page.html`     | Elenco dei movimenti attivi per la web app, generato lato server negli scriptlet, con ricerca client-side sulla descrizione.                                                                                                                              |
 | `Conguaglio.gs`        | Calcolo greedy del minor numero di bonifici (`calcolaConguaglio_()`, in centesimi) e scrittura in `Giroconti`.                                                                                                                                             |
 | `Conguaglio-page.html` | Dialog modale del conguaglio, template con scriptlet `<? ?>`.                                                                                                                                                                                             |
+| `Composizione.gs`      | Da dove viene il debito di ciascuno, per la pagina web: `composizioneDebiti_()` legge i fogli e riduce le date a `aaaa-mm-gg`, `aggregaDebiti_()` è **logica pura** e testabile. Più gli helper `euro_()`, `euroSegno_()`, `elenco_()`, `dataItaliana_()`. |
+| `Debiti-page.html`     | Pagina web del conguaglio: bonifici proposti e un blocco apribile per ogni socio a debito. Variabili di template `dati` e `urlBase`. Sola lettura.                                                                                                                                                                                             |
 | `Validazioni.gs`       | `verificaIntegrita()` (riassume il foglio `Controlli`), `compattaTabelle()`, e `testRipartizione()`.                                                                                                                                                      |
 | `appsscript.json`      | Manifest: fuso `Europe/Rome`, runtime V8, scope OAuth dichiarati esplicitamente, impostazioni della web app (`USER_ACCESSING`, `ANYONE`).                                                                                                                  |
 
@@ -58,25 +60,34 @@ agganciate al menu **non** devono avere il suffisso.
 
 ## Test
 
-L'unico test automatico è `testRipartizione()` in `Validazioni.gs`: copre solo
-`Ripartizione.gs`, non tocca il foglio, e include la verifica di
-`quote(-X) = -quote(X)` su più importi. Va rilanciato dopo ogni modifica alla
-ripartizione. Tutto il resto (formule, controlli, scritture) si collauda solo
-sul foglio reale.
+Due test automatici, entrambi in `Validazioni.gs` e entrambi su logica pura:
+
+- `testRipartizione()` copre `Ripartizione.gs`, e include la verifica di
+  `quote(-X) = -quote(X)` su più importi. Va rilanciato dopo ogni modifica alla
+  ripartizione.
+- `testComposizione()` copre `aggregaDebiti_()` di `Composizione.gs`. La
+  proprietà che verifica è una sola e non va persa: per ogni socio a debito,
+  `pagato - dovuto + giroconti` fa il saldo del foglio. Il resto dei casi
+  riguarda chi entra in pagina e dove si piega l'elenco.
+
+Tutto il resto (formule, controlli, scritture, pagine) si collauda solo sul
+foglio reale.
 
     npm test
 
-`scripts/test.js` carica `Costanti.gs`, `Ripartizione.gs` e `Validazioni.gs` in
-un contesto `vm`, con uno stub di `Logger`, e restituisce exit code diverso da
-zero se qualche caso fallisce. Nessuna dipendenza: usa solo i moduli di Node.
-La stessa funzione resta lanciabile dall'editor Apps Script, dove scrive
-l'esito nel log di esecuzione.
+`scripts/test.js` carica `Costanti.gs`, `Ripartizione.gs`, `Composizione.gs` e
+`Validazioni.gs` in un contesto `vm`, con uno stub di `Logger`, lancia le
+funzioni elencate in `TEST` e restituisce exit code diverso da zero se qualche
+caso fallisce. Nessuna dipendenza: usa solo i moduli di Node. Le stesse
+funzioni restano lanciabili dall'editor Apps Script, dove scrivono l'esito nel
+log di esecuzione.
 
-Il runner funziona perché quei tre file non toccano il foglio e non hanno
-codice a livello globale. Se un giorno `Validazioni.gs` ne acquistasse, o se
-`Ripartizione.gs` smettesse di essere logica pura, il runner va cambiato
-insieme: è il prezzo di poter collaudare senza aprire il browser, e vale la
-pena pagarlo.
+Il runner funziona perché quei file non toccano il foglio e non hanno codice a
+livello globale: le funzioni che usano `SpreadsheetApp` o `Utilities` vengono
+definite e mai invocate. Se un giorno `Validazioni.gs` acquistasse codice
+globale, o se `Ripartizione.gs` o la parte pura di `Composizione.gs`
+smettessero di essere pure, il runner va cambiato insieme: è il prezzo di poter
+collaudare senza aprire il browser, e vale la pena pagarlo.
 
 ## Modello dati
 
@@ -243,15 +254,17 @@ telefono.
 
 Decisioni prese, da non rimettere in discussione:
 
-- **Tre pagine separate, scelte da `doGet(e)` in base all'URL**: elenco dei
+- **Quattro pagine separate, scelte da `doGet(e)` in base all'URL**: elenco dei
   movimenti attivi (`/exec`, pagina iniziale), modulo in modifica
-  (`?id=N`) e modulo vuoto (`?nuovo=1`). Pagine separate e non una pagina
-  unica: il modulo si costruisce una volta sola e non sa reinizializzarsi su
-  un altro movimento, e così il tasto indietro di Android funziona da solo.
-  Un `id` inesistente riporta all'elenco con un avviso.
-- **Dal telefono si inserisce e si modifica, nient'altro.** Annullamento,
-  riattivazione, saldi e conguaglio restano nel foglio. L'elenco nasconde gli
-  annullati.
+  (`?id=N`), modulo vuoto (`?nuovo=1`) e conguaglio (`?conguaglio=1`). Pagine
+  separate e non una pagina unica: il modulo si costruisce una volta sola e non
+  sa reinizializzarsi su un altro movimento, e così il tasto indietro di
+  Android funziona da solo. Un `id` inesistente riporta all'elenco con un
+  avviso.
+- **Dal telefono si inserisce, si modifica e si guarda il conguaglio.**
+  Annullamento, riattivazione, calcolo del conguaglio e scrittura dei giroconti
+  restano nel foglio: la pagina del conguaglio è di sola lettura e non apre un
+  nuovo punto di scrittura dalla web app. L'elenco nasconde gli annullati.
 - **I link fra le pagine usano l'URL completo** da
   `ScriptApp.getService().getUrl()`: la pagina gira in un iframe su un
   dominio diverso, e un link relativo non tornerebbe alla web app. Ogni link
@@ -261,6 +274,18 @@ Decisioni prese, da non rimettere in discussione:
   del foglio: chi non lo ha in modifica non legge né scrive niente. Il `Log`
   registra l'email di chi inserisce; eseguendo come proprietario, con account
   Gmail personali `Session.getActiveUser()` restituirebbe vuoto.
+- **La pagina del conguaglio mostra solo i soci a debito.** Chi è a credito
+  compare come destinatario di un bonifico e non ha un blocco proprio: la
+  pagina serve a chi deve pagare. La cassa resta fuori dall'elenco (non ha
+  quote a suo carico, non ci sarebbe un dovuto da scomporre) ma resta nei
+  bonifici, perché il prelievo dal fondo è un movimento vero.
+- **I totali in pagina sono di sempre, non di un periodo**, e coincidono con le
+  colonne di `Saldi`. L'elenco delle quote si ripiega all'ultimo giroconto del
+  socio — data diversa per ciascuno, perché i conti fra le coppie si chiudono
+  in momenti diversi — ma quella data **non entra in nessun calcolo**: è
+  impaginazione. La prima versione del disegno calcolava invece un riporto per
+  periodo, e obbligava a far quadrare due aritmetiche al posto di una: non
+  tornarci.
 - `SpreadsheetApp.getActive()` **funziona** nel `doGet()` di uno script bound: il
   binding è statico e non dipende dal documento aperto. Non serve `openById()`.
 - Lo scope giusto è `https://www.googleapis.com/auth/spreadsheets.currentonly`,
@@ -271,7 +296,9 @@ Decisioni prese, da non rimettere in discussione:
   (sidebar, dialog, menu) e `userinfo.email` (`scriviLog_()`).
 
 Vincoli per tutto ciò che è raggiungibile dalla web app (`doGet()`,
-`getDatiIniziali()`, `salvaSpesa()` e ciò che chiamano):
+`getDatiIniziali()`, `salvaSpesa()`, `composizioneDebiti_()` e ciò che
+chiamano — fra cui ora `calcolaConguaglio_()`, `leggiMovimenti_()` e
+`indicizzaFiglie_()`):
 
 - **Niente `SpreadsheetApp.getUi()`**, che fuori dal foglio non esiste. Oggi
   lo usano solo funzioni di menu (`mostraSidebar_()`, `idSpesaSelezionata_()`,

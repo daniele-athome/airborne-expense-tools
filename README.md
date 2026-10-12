@@ -22,13 +22,15 @@ spese condivise di un gruppo di comproprietari.
    | `Sidebar-page.html`    | HTML   |
    | `Conguaglio.gs`        | script |
    | `Conguaglio-page.html` | HTML   |
+   | `Composizione.gs`      | script |
    | `Validazioni.gs`       | script |
    | `Web.gs`               | script |
    | `Elenco-page.html`     | HTML   |
+   | `Debiti-page.html`     | HTML   |
 
    Puoi eliminare il `Codice.gs` creato in automatico.
 
-   Il suffisso `-page` sui due file HTML non è decorativo: Apps Script non
+   Il suffisso `-page` sui file HTML non è decorativo: Apps Script non
    ammette due file con lo stesso nome, nemmeno di estensione diversa, quindi
    `Sidebar.gs` e `Sidebar.html` non possono coesistere. I nomi vanno rispettati
    alla lettera, perché `createTemplateFromFile()` li cerca così.
@@ -108,8 +110,22 @@ descrizione mentre scrivi. Un tap su un movimento apre il modulo di modifica;
 il pulsante **Nuovo movimento** apre il modulo vuoto. L'elenco mostra solo i
 movimenti attivi: gli annullati non compaiono.
 
-Annullamento, riattivazione, conguaglio e giroconti restano nel foglio, dal
-computer.
+Dal link **Conguaglio e debiti** si arriva alla pagina del conguaglio: in
+alto i bonifici che azzerano tutti i saldi, sotto un blocco per ogni socio a
+debito. Aprendolo si vede da dove viene il suo debito: il `dovuto` scomposto
+nelle singole quote, il `pagato` e i `giroconti`, e il saldo come loro somma.
+Chi è a credito non ha un blocco: compare come destinatario di un bonifico.
+
+I totali di ogni socio sono quelli di sempre, gli stessi delle colonne di
+`Saldi`. L'elenco delle quote si ferma all'ultimo giroconto del socio e il
+resto sta ripiegato dietro un link: è solo impaginazione, quei movimenti sono
+dentro il totale. Ogni socio ha la sua data, perché i conti fra le coppie si
+chiudono in momenti diversi; chi non ha mai fatto un giroconto vede tutto
+l'elenco.
+
+La pagina è di sola lettura. **Annullamento, riattivazione, calcolo del
+conguaglio e scrittura dei giroconti restano nel foglio**, dal computer: dal
+telefono si vede quanto si deve, non si chiudono i conti.
 
 **Pubblicarla (una volta, a cura di chi gestisce lo script).** Nell'editor Apps
 Script: Esegui il deployment → Nuovo deployment → tipo *App web*, con *Esegui

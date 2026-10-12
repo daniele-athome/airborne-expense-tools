@@ -4,11 +4,12 @@
  * Interfaccia web per il telefono. L'app Google Sheets per Android non
  * esegue menu personalizzati, sidebar ne' dialog: il browser si'.
  *
- * Tre pagine, scelte dai parametri dell'URL:
+ * Quattro pagine, scelte dai parametri dell'URL:
  *
- *   /exec            elenco dei movimenti attivi (Elenco-page)
- *   /exec?id=17      modulo in modifica         (Sidebar-page)
- *   /exec?nuovo=1    modulo vuoto               (Sidebar-page)
+ *   /exec              elenco dei movimenti attivi (Elenco-page)
+ *   /exec?id=17        modulo in modifica         (Sidebar-page)
+ *   /exec?nuovo=1      modulo vuoto               (Sidebar-page)
+ *   /exec?conguaglio=1 conguaglio e debiti        (Debiti-page)
  *
  * Pagine separate e non una pagina unica: il modulo della sidebar si riusa
  * senza toccarlo (si costruisce una volta sola e non sa reinizializzarsi su
@@ -48,6 +49,7 @@ function doGet(e) {
     return paginaModulo_(url, id);
   }
   if (par.nuovo !== undefined) return paginaModulo_(url, null);
+  if (par.conguaglio !== undefined) return paginaConguaglio_(url);
   return paginaElenco_(url, '');
 }
 
@@ -64,8 +66,21 @@ function paginaElenco_(url, avviso) {
   var t = HtmlService.createTemplateFromFile('Elenco-page');
   t.movimenti = elencoMovimenti_(url);
   t.urlNuovo = url + '?nuovo=1';
+  t.urlConguaglio = url + '?conguaglio=1';
   t.avviso = avviso || '';
   return paginaWeb_(t, 'Movimenti');
+}
+
+/**
+ * Conguaglio e composizione dei debiti. Pagina di sola lettura: il
+ * conguaglio si lancia dal foglio, e da qui non si scrive niente.
+ */
+function paginaConguaglio_(url) {
+  // 'Debiti-page': vedi la nota in Sidebar.gs sui nomi dei file.
+  var t = HtmlService.createTemplateFromFile('Debiti-page');
+  t.dati = composizioneDebiti_();
+  t.urlBase = url;
+  return paginaWeb_(t, 'Conguaglio');
 }
 
 function paginaWeb_(template, titolo) {

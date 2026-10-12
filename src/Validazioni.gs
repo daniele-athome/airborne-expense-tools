@@ -236,3 +236,173 @@ function testRipartizione() {
   Logger.log(esito);
   return esito;
 }
+
+/* ------------------------------------------------------------------ */
+/* Autotest della composizione dei debiti                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Da lanciare dall'editor di Apps Script dopo aver toccato Composizione.gs.
+ * Non tocca il foglio: aggregaDebiti_() e' logica pura.
+ *
+ * La proprieta' che conta e' una sola: per ogni socio a debito,
+ * pagato - dovuto + giroconti deve fare il saldo che sta nel foglio Saldi.
+ * Tutto il resto (chi entra in pagina, dove si piega l'elenco) e' impaginazione.
+ */
+function testComposizione() {
+  var errori = [];
+
+  function verifica(nome, atteso, ottenuto) {
+    var a = JSON.stringify(atteso), o = JSON.stringify(ottenuto);
+    if (a !== o) errori.push(nome + '\n  atteso:   ' + a + '\n  ottenuto: ' + o);
+  }
+
+  /*
+   * Scenario: quattro soci e la cassa, con un conguaglio chiuso il 25/06 e
+   * movimenti successivi. Gli importi sono quelli del mockup, scelti perche'
+   * i saldi fanno zero e il greedy produce quattro bonifici.
+   *
+   *   D +2180   M +414   L -1527   G -859   CASSA -208
+   */
+  var mov = [
+    { id: 1, giorno: '2026-06-20', tipo: 'SPESA',   descrizione: 'Hangar',        importo: 900,  criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 2, giorno: '2026-07-05', tipo: 'SPESA',   descrizione: 'Carburante',    importo: 546,  criterio: 'UGUALE_SELEZIONE', stato: 'OK' },
+    { id: 3, giorno: '2026-07-18', tipo: 'SPESA',   descrizione: 'Assicurazione', importo: 2400, criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 4, giorno: '2026-08-02', tipo: 'SPESA',   descrizione: 'Revisione',     importo: 1180, criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 5, giorno: '2026-08-19', tipo: 'SPESA',   descrizione: 'Olio',          importo: 164,  criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 6, giorno: '2026-09-06', tipo: 'ENTRATA', descrizione: 'Rimborso',      importo: -800, criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 7, giorno: '2026-09-21', tipo: 'SPESA',   descrizione: 'Tassa',         importo: 528,  criterio: 'UGUALE_TUTTI', stato: 'OK' },
+    { id: 8, giorno: '2026-10-04', tipo: 'SPESA',   descrizione: 'Carburante',    importo: 468,  criterio: 'UGUALE_SELEZIONE', stato: 'OK' },
+    // Annullato: non deve comparire ne' entrare nei totali.
+    { id: 9, giorno: '2026-10-05', tipo: 'SPESA',   descrizione: 'Annullata',     importo: 400,  criterio: 'UGUALE_TUTTI', stato: 'ANNULLATA' }
+  ];
+  var quote = {
+    1: { D: 225, M: 225, L: 225, G: 225 },
+    2: { D: 273, M: 273 },
+    3: { D: 600, M: 600, L: 600, G: 600 },
+    4: { D: 295, M: 295, L: 295, G: 295 },
+    5: { D: 41,  M: 41,  L: 41,  G: 41 },
+    6: { D: -200, M: -200, L: -200, G: -200 },
+    7: { D: 132, M: 132, L: 132, G: 132 },
+    8: { L: 234, G: 234 },
+    9: { D: 100, M: 100, L: 100, G: 100 }
+  };
+  var pagamenti = {
+    1: { CASSA: 900 },
+    2: { D: 546 },
+    3: { D: 2400 },
+    4: { M: 1180 },
+    5: { CASSA: 164 },
+    6: { L: -800 },
+    7: { CASSA: 528 },
+    8: { G: 468 },
+    9: { D: 400 }
+  };
+  var giroconti = [
+    { giorno: '2026-06-25', da: 'D', a: 'CASSA', importo: 600, causale: 'Versamento' },
+    { giorno: '2026-06-25', da: 'M', a: 'CASSA', importo: 600, causale: 'Versamento' },
+    { giorno: '2026-09-02', da: 'L', a: 'CASSA', importo: 600, causale: 'Versamento' }
+  ];
+  var saldi = [
+    { id: 'D', nome: 'Daniele', saldo: 2180 },
+    { id: 'M', nome: 'Marco',   saldo: 414 },
+    { id: 'L', nome: 'Luca',    saldo: -1527 },
+    { id: 'G', nome: 'Giulia',  saldo: -859 },
+    { id: 'CASSA', nome: 'Cassa comune', saldo: -208 }
+  ];
+  var bonifici = [
+    { da: 'L', daNome: 'Luca',   a: 'D', aNome: 'Daniele', importo: 1527 },
+    { da: 'G', daNome: 'Giulia', a: 'D', aNome: 'Daniele', importo: 653 },
+    { da: 'G', daNome: 'Giulia', a: 'M', aNome: 'Marco',   importo: 206 },
+    { da: 'CASSA', daNome: 'Cassa comune', a: 'M', aNome: 'Marco', importo: 208 }
+  ];
+
+  var dati = {
+    cassa: 'CASSA', saldi: saldi, bonifici: bonifici, sbilancio: 0, totale: 2594,
+    movimenti: mov, quote: quote, pagamenti: pagamenti, giroconti: giroconti
+  };
+
+  var r = aggregaDebiti_(dati);
+
+  // In pagina solo i soci a debito, dal piu' esposto. La cassa e' a debito
+  // (il suo saldo e' l'opposto della giacenza) ma non e' un socio.
+  verifica('solo i debitori, in ordine di debito', ['Luca', 'Giulia'],
+    r.debitori.map(function (x) { return x.nome; }));
+
+  // La controprova e' la ragione d'essere del test.
+  r.debitori.forEach(function (x) {
+    verifica('il conto di ' + x.nome + ' fa il saldo', true, x.quadra);
+    verifica('somma delle voci di ' + x.nome, x.saldo,
+      Math.round((x.pagato - x.dovuto + x.giroconti) * 100) / 100);
+  });
+
+  var luca = r.debitori[0], giulia = r.debitori[1];
+
+  verifica('dovuto di Luca', 1327, luca.dovuto);
+  verifica('pagato di Luca', -800, luca.pagato);
+  verifica('giroconti di Luca', 600, luca.giroconti);
+  verifica('dovuto di Giulia', 1327, giulia.dovuto);
+  verifica('pagato di Giulia', 468, giulia.pagato);
+  verifica('giroconti di Giulia', 0, giulia.giroconti);
+
+  // Il movimento annullato resta fuori da tutto.
+  verifica('movimenti nel dovuto di Luca', 7, luca.nQuote);
+  verifica('nessuna riga dal movimento annullato', [],
+    luca.quoteRecenti.concat(luca.quotePrecedenti)
+      .filter(function (q) { return q.descrizione === 'Annullata'; }));
+
+  // La piega: ultimo giroconto del socio, in qualunque ruolo.
+  verifica('piega di Luca', '2026-09-02', luca.piega);
+  verifica('elenco di Luca dal piu recente',
+    ['2026-10-04', '2026-09-21', '2026-09-06'],
+    luca.quoteRecenti.map(function (q) { return q.giorno; }));
+  verifica('ripiegati di Luca', 4, luca.quotePrecedenti.length);
+
+  // Senza giroconti non c'e' una piega: l'elenco e' tutto aperto.
+  verifica('Giulia non ha piega', '', giulia.piega);
+  verifica('Giulia non ha movimenti ripiegati', 0, giulia.quotePrecedenti.length);
+  verifica('Giulia ha tutto in elenco', 7, giulia.quoteRecenti.length);
+
+  // Una spesa datata il giorno stesso della piega sta sopra la piega, non
+  // sotto: altrimenti una spesa registrata il giorno del conguaglio
+  // sparirebbe dalla parte in evidenza.
+  var conStessoGiorno = {
+    cassa: 'CASSA',
+    saldi: [{ id: 'A', nome: 'A', saldo: -50 }],
+    bonifici: [], sbilancio: 0, totale: 0,
+    movimenti: [{ id: 1, giorno: '2026-09-02', tipo: 'SPESA', descrizione: 'Stesso giorno',
+                  importo: 50, criterio: 'UGUALE_TUTTI', stato: 'OK' }],
+    quote: { 1: { A: 50 } },
+    pagamenti: {},
+    giroconti: [{ giorno: '2026-09-02', da: 'A', a: 'CASSA', importo: 0, causale: '' }]
+  };
+  var sg = aggregaDebiti_(conStessoGiorno).debitori[0];
+  verifica('spesa dello stesso giorno sopra la piega', 1, sg.quoteRecenti.length);
+  verifica('spesa dello stesso giorno non ripiegata', 0, sg.quotePrecedenti.length);
+
+  // Un saldo nullo con residuo di virgola mobile non e' un debito.
+  var residuo = aggregaDebiti_({
+    cassa: 'CASSA',
+    saldi: [{ id: 'A', nome: 'A', saldo: -1.4e-11 }],
+    bonifici: [], sbilancio: 0, totale: 0,
+    movimenti: [], quote: {}, pagamenti: {}, giroconti: []
+  });
+  verifica('saldo a zero con residuo non entra in pagina', 0, residuo.debitori.length);
+
+  // I bonifici del socio: sono cosa deve fare, e vengono dal conguaglio.
+  verifica('bonifici di Giulia', [['Daniele', 653], ['Marco', 206]],
+    giulia.bonifici.map(function (b) { return [b.aNome, b.importo]; }));
+
+  verifica('elenco di uno', 'a', elenco_(['a']));
+  verifica('elenco di due', 'a e b', elenco_(['a', 'b']));
+  verifica('elenco di tre', 'a, b e c', elenco_(['a', 'b', 'c']));
+
+  verifica('data italiana', '04/10/2026', dataItaliana_('2026-10-04'));
+  verifica('data vuota', '', dataItaliana_(''));
+
+  var esito = errori.length
+    ? errori.length + ' test falliti:\n\n' + errori.join('\n\n')
+    : 'Tutti i test passati.';
+  Logger.log(esito);
+  return esito;
+}

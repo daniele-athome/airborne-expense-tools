@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  /* Pagina a colonna singola, come Elenco-page: stessi token e stessa
+     larghezza, cosi' le pagine della web app sembrano una cosa sola. */
+  :root {
+    --inchiostro: #1c2024;
+    --attenuato:  #626d78;
+    --riga:       #dde1e6;
+    --riga-tenue: #f0f2f4;
+    --sfondo:     #ffffff;
+    --campo:      #f6f7f9;
+    --azione:     #2f5d7c;
+    --credito:    #1b5e20;
+    --debito:     #b3261e;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0 auto;
+    max-width: 560px;
+    padding: 16px 16px 32px 16px;
+    font-family: Roboto, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--inchiostro);
+    background: var(--sfondo);
+  }
+
+  h1 { font-size: 20px; font-weight: 500; margin: 0; }
+  h2 {
+    font-size: 13px; font-weight: 500; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--attenuato);
+    margin: 0 0 6px 0;
+  }
+  a { color: var(--azione); }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--azione); outline-offset: 1px;
+  }
+
+  .testa { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .timbro { color: var(--attenuato); font-size: 13px; margin: 2px 0 14px 0; }
+  .indietro { font-size: 14px; white-space: nowrap; text-decoration: none; }
+
+  section { border-top: 1px solid var(--riga); padding: 16px 0 4px 0; }
+
+  /* Bonifici: una riga da -> a, importo a destra. */
+  .bonifici { list-style: none; margin: 0; padding: 0; }
+  .bonifici li {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 9px 0; border-bottom: 1px solid var(--riga-tenue);
+  }
+  .bonifici .chi { min-width: 0; overflow-wrap: anywhere; }
+  .bonifici .verso { color: var(--attenuato); font-size: 14px; }
+  .bonifici .imp {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .totale-bonifici { color: var(--attenuato); font-size: 14px; margin: 10px 0 0 0; }
+
+  /* Un blocco apribile per socio a debito. */
+  details.socio { border-bottom: 1px solid var(--riga); }
+  details.socio > summary {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 2px 12px; padding: 12px 0; cursor: pointer; list-style: none;
+  }
+  details.socio > summary::-webkit-details-marker { display: none; }
+  .nome { font-weight: 500; }
+  .nome::before {
+    content: "\25B8"; display: inline-block; width: 14px;
+    color: var(--attenuato); font-weight: 400;
+    transition: transform .12s ease;
+  }
+  details.socio[open] > summary .nome::before { transform: rotate(90deg); }
+  @media (prefers-reduced-motion: reduce) {
+    .nome::before { transition: none; }
+  }
+  .azione-socio { color: var(--attenuato); font-size: 14px; padding-left: 14px; }
+  .finestra { color: var(--attenuato); font-size: 13px; padding-left: 14px; }
+  .saldo {
+    grid-column: 2; grid-row: 1 / span 3; align-self: center;
+    text-align: right; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .saldo small { display: block; font-size: 12px; color: var(--attenuato); }
+  .debito { color: var(--debito); }
+
+  /* Il conto del socio: una riga per voce, il saldo e' la loro somma. */
+  .conto { margin: 0 0 14px 14px; }
+  .conto .voce, .conto > details > summary {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 5px 0; border-bottom: 1px solid var(--riga-tenue);
+    font-size: 15px;
+  }
+  .conto > details > summary { cursor: pointer; list-style: none; }
+  .conto > details > summary::-webkit-details-marker { display: none; }
+  .conto .et { color: var(--attenuato); }
+  .conto .et b { color: var(--inchiostro); font-weight: 400; }
+  .conto .n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .conto .somma {
+    border-bottom: 0; border-top: 2px solid var(--riga);
+    margin-top: 2px; padding-top: 7px; font-weight: 500;
+  }
+  .conto .somma .et b { font-weight: 500; }
+  .apri::after { content: " \25B8"; color: var(--attenuato); }
+  details[open] > summary .apri::after { content: " \25BE"; }
+
+  /* Elenco dei movimenti dentro una voce. */
+  .dettaglio { margin: 4px 0 10px 0; padding-left: 10px; border-left: 2px solid var(--riga); }
+  .dettaglio ul { list-style: none; margin: 0; padding: 0; }
+  .dettaglio li {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 0 12px; padding: 7px 0; border-bottom: 1px solid var(--riga-tenue);
+    font-size: 15px;
+  }
+  .dettaglio .desc { overflow-wrap: anywhere; }
+  .dettaglio .meta { color: var(--attenuato); font-size: 13px; }
+  .dettaglio .q {
+    grid-column: 2; grid-row: 1 / span 2; align-self: center;
+    text-align: right; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .dettaglio .entrata .q, .dettaglio .entrata .desc { color: var(--credito); }
+  .dettaglio .tot {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 7px 0 0 0; font-size: 15px; font-weight: 500;
+  }
+  .dettaglio .tot span:last-child { font-variant-numeric: tabular-nums; }
+
+  /* La piega: i movimenti piu' vecchi dell'ultimo giroconto del socio.
+     Sono dentro il totale, solo ripiegati. */
+  .piega > summary {
+    cursor: pointer; list-style: none;
+    color: var(--azione); font-size: 14px;
+    padding: 9px 0 7px 0;
+  }
+  .piega > summary::-webkit-details-marker { display: none; }
+  .piega > summary .aperto { display: none; }
+  .piega[open] > summary .aperto { display: inline; }
+  .piega[open] > summary .chiuso { display: none; }
+
+  .vuoto { color: var(--attenuato); padding: 14px 0; }
+  .allarme {
+    background: #fbe9e7; color: var(--debito);
+    padding: 9px 11px; border-radius: 3px; margin: 0 0 12px 0; font-size: 15px;
+  }
+  .conto + .allarme { margin: 0 0 14px 14px; }
+</style>
+</head>
+<body>
+
+<? var d = dati; ?>
+
+<div class="testa">
+  <h1>Conguaglio</h1>
+  <a class="indietro" href="<?= urlBase ?>">&larr; Movimenti</a>
+</div>
+<p class="timbro">Saldi al <?= d.aggiornato ?> &middot; importi in euro</p>
+
+<? if (Math.abs(d.sbilancio) > 0.004) { ?>
+  <div class="allarme">
+    I saldi non sono in pari: sbilancio di <?= euro_(d.sbilancio) ?>. Finche'
+    non torna a zero non si pu&ograve; conguagliare, e i bonifici non vengono
+    calcolati. Apri il foglio Controlli dal computer.
+  </div>
+<? } ?>
+
+<section>
+  <? if (d.bonifici.length) { ?>
+    <ul class="bonifici">
+      <? for (var i = 0; i < d.bonifici.length; i++) { var b = d.bonifici[i]; ?>
+        <li>
+          <span class="chi"><?= b.daNome ?> <span class="verso">paga</span> <?= b.aNome ?></span>
+          <span class="imp"><?= euro_(b.importo) ?></span>
+        </li>
+      <? } ?>
+    </ul>
+    <p class="totale-bonifici"><?= d.bonifici.length ?> bonifici, totale <?= euro_(d.totale) ?>.</p>
+  <? } else if (!d.debitori.length) { ?>
+    <p class="vuoto">Niente da conguagliare: i saldi sono gi&agrave; a zero.</p>
+  <? } ?>
+</section>
+
+<? if (d.debitori.length) { ?>
+<section>
+  <h2>Dettaglio debiti</h2>
+
+  <? for (var s = 0; s < d.debitori.length; s++) { var x = d.debitori[s]; ?>
+    <details class="socio">
+      <summary>
+        <span class="nome"><?= x.nome ?></span>
+        <? var azioni = x.bonifici.map(function (b) { return euro_(b.importo) + ' a ' + b.aNome; }); ?>
+        <span class="azione-socio"><?= azioni.length ? 'paghi ' + elenco_(azioni) : 'nessun bonifico proposto' ?></span>
+        <span class="finestra"><?= x.piegaData ? 'ultimo giroconto il ' + x.piegaData : 'nessun giroconto finora' ?></span>
+        <span class="saldo debito"><?= euro_(x.saldo) ?><small>a debito</small></span>
+      </summary>
+
+      <div class="conto">
+        <details open>
+          <summary>
+            <span class="et">&minus; <b class="apri">dovuto</b></span>
+            <span class="n"><?= euro_(x.dovuto) ?></span>
+          </summary>
+          <div class="dettaglio">
+            <? if (x.nQuote) { ?>
+              <ul>
+                <? for (var q = 0; q < x.quoteRecenti.length; q++) { var r = x.quoteRecenti[q]; ?>
+                  <li<?= r.entrata ? ' class="entrata"' : '' ?>>
+                    <span class="desc"><?= r.descrizione ?></span>
+                    <span class="meta"><?= r.data ?> &middot; <?= r.entrata ? 'entrata' : 'spesa' ?>
+                      <?= euro_(r.importoMovimento) ?><? if (r.criterio) { ?> &middot; <?= r.criterio ?><? } ?></span>
+                    <span class="q"><?= euro_(r.quota) ?></span>
+                  </li>
+                <? } ?>
+              </ul>
+              <? if (x.quotePrecedenti.length) { ?>
+                <details class="piega">
+                  <summary>
+                    <span class="chiuso">mostra <?= x.quotePrecedenti.length ?> movimenti precedenti al <?= x.piegaData ?> &#9656;</span>
+                    <span class="aperto">nascondi i movimenti precedenti al <?= x.piegaData ?> &#9662;</span>
+                  </summary>
+                  <ul>
+                    <? for (var v = 0; v < x.quotePrecedenti.length; v++) { var rp = x.quotePrecedenti[v]; ?>
+                      <li<?= rp.entrata ? ' class="entrata"' : '' ?>>
+                        <span class="desc"><?= rp.descrizione ?></span>
+                        <span class="meta"><?= rp.data ?> &middot; <?= rp.entrata ? 'entrata' : 'spesa' ?>
+                          <?= euro_(rp.importoMovimento) ?><? if (rp.criterio) { ?> &middot; <?= rp.criterio ?><? } ?></span>
+                        <span class="q"><?= euro_(rp.quota) ?></span>
+                      </li>
+                    <? } ?>
+                  </ul>
+                </details>
+              <? } ?>
+              <? if (x.nQuote > 1) { ?>
+                <div class="tot"><span><?= x.nQuote ?> movimenti</span><span><?= euro_(x.dovuto) ?></span></div>
+              <? } ?>
+            <? } else { ?>
+              <p class="vuoto">Nessuna quota a tuo carico.</p>
+            <? } ?>
+          </div>
+        </details>
+
+        <? if (x.pagamenti.length) { ?>
+          <details>
+            <summary>
+              <span class="et">+ <b class="apri">pagato</b></span>
+              <span class="n"><?= euro_(x.pagato) ?></span>
+            </summary>
+            <div class="dettaglio">
+              <ul>
+                <? for (var p = 0; p < x.pagamenti.length; p++) { var rp2 = x.pagamenti[p]; ?>
+                  <li<?= rp2.entrata ? ' class="entrata"' : '' ?>>
+                    <span class="desc"><?= rp2.descrizione ?></span>
+                    <span class="meta"><?= rp2.data ?> &middot;
+                      <? if (rp2.entrata) { ?>
+                        hai incassato <? if (rp2.intero) { ?>l&rsquo;intera entrata<? } else { ?><?= euro_(Math.abs(rp2.importo)) ?> di <?= euro_(rp2.importoMovimento) ?><? } ?>
+                      <? } else { ?>
+                        hai anticipato <? if (rp2.intero) { ?>l&rsquo;intera spesa<? } else { ?><?= euro_(rp2.importo) ?> di <?= euro_(rp2.importoMovimento) ?><? } ?>
+                      <? } ?>
+                    </span>
+                    <span class="q"><?= euro_(rp2.importo) ?></span>
+                  </li>
+                <? } ?>
+              </ul>
+              <? if (x.pagamenti.length > 1) { ?>
+                <div class="tot"><span><?= x.pagamenti.length ?> movimenti</span><span><?= euro_(x.pagato) ?></span></div>
+              <? } ?>
+            </div>
+          </details>
+        <? } else { ?>
+          <div class="voce">
+            <span class="et">+ <b>pagato</b></span>
+            <span class="n">nessuno</span>
+          </div>
+        <? } ?>
+
+        <? if (x.movGiroconti.length) { ?>
+          <details>
+            <summary>
+              <span class="et">&plusmn; <b class="apri">giroconti</b></span>
+              <span class="n"><?= euroSegno_(x.giroconti) ?></span>
+            </summary>
+            <div class="dettaglio">
+              <ul>
+                <? for (var g = 0; g < x.movGiroconti.length; g++) { var rg = x.movGiroconti[g]; ?>
+                  <li>
+                    <span class="desc">
+                      <? if (rg.versato) { ?>
+                        <?= rg.versoCassa ? 'Versamento in cassa' : 'Versamento a ' + rg.controparte ?>
+                      <? } else { ?>
+                        <?= rg.versoCassa ? 'Ricevuto dalla cassa' : 'Ricevuto da ' + rg.controparte ?>
+                      <? } ?>
+                    </span>
+                    <span class="meta"><?= rg.data ?><? if (rg.causale) { ?> &middot; <?= rg.causale ?><? } ?></span>
+                    <span class="q"><?= euroSegno_(rg.importo) ?></span>
+                  </li>
+                <? } ?>
+              </ul>
+              <? if (x.movGiroconti.length > 1) { ?>
+                <div class="tot"><span><?= x.movGiroconti.length ?> movimenti</span><span><?= euroSegno_(x.giroconti) ?></span></div>
+              <? } ?>
+            </div>
+          </details>
+        <? } else { ?>
+          <div class="voce">
+            <span class="et">&plusmn; <b>giroconti</b></span>
+            <span class="n">nessuno</span>
+          </div>
+        <? } ?>
+
+        <div class="voce somma">
+          <span class="et"><b>saldo</b></span>
+          <span class="n debito"><?= euro_(x.saldo) ?></span>
+        </div>
+      </div>
+
+      <? if (!x.quadra) { ?>
+        <div class="allarme">
+          Queste tre voci non fanno il saldo che sta nel foglio: da qualche
+          parte c&rsquo;&egrave; una riga che i Saldi contano e questa pagina no,
+          o viceversa. Dal computer: menu &rarr; Ripristina colonne calcolate,
+          poi Verifica integrit&agrave;.
+        </div>
+      <? } ?>
+    </details>
+  <? } ?>
+</section>
+<? } ?>
+
+</body>
+</html>

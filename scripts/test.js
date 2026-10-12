@@ -2,20 +2,22 @@
 'use strict';
 
 /**
- * Esegue testRipartizione() sotto Node, senza aprire l'editor Apps Script.
+ * Esegue gli autotest della logica pura sotto Node, senza aprire l'editor
+ * Apps Script.
  *
- * Funziona perche' la logica di ripartizione e' pura: Ripartizione.gs non
- * tocca il foglio e Costanti.gs sono sole dichiarazioni. Validazioni.gs si
- * carica per intero: non ha codice a livello globale, quindi le funzioni che
- * usano SpreadsheetApp vengono definite ma mai invocate.
+ * Funziona perche' i file caricati non toccano il foglio: Ripartizione.gs e
+ * la parte pura di Composizione.gs prendono numeri e restituiscono numeri,
+ * Costanti.gs sono sole dichiarazioni. Composizione.gs e Validazioni.gs si
+ * caricano per intero: non hanno codice a livello globale, quindi le funzioni
+ * che usano SpreadsheetApp o Utilities vengono definite ma mai invocate.
  *
  * Si usa un contesto vm invece di eval incatenate: in un contesto vm le
  * dichiarazioni var e function di primo livello diventano proprieta' del
- * contesto, cosi' i tre file si vedono fra loro come nell'ambiente Apps
- * Script, e i nomi dei file compaiono negli stack trace.
+ * contesto, cosi' i file si vedono fra loro come nell'ambiente Apps Script, e
+ * i nomi dei file compaiono negli stack trace.
  *
- * Copre solo Ripartizione.gs. Formule, controlli e scritture restano
- * collaudabili unicamente sul foglio reale.
+ * Coperti: Ripartizione.gs e aggregaDebiti_() di Composizione.gs. Formule,
+ * controlli, scritture e pagine restano collaudabili solo sul foglio reale.
  */
 
 const fs = require('fs');
@@ -23,7 +25,11 @@ const path = require('path');
 const vm = require('vm');
 
 const SRC = path.join(__dirname, '..', 'src');
-const FILE = ['Costanti.gs', 'Ripartizione.gs', 'Validazioni.gs'];
+const FILE = ['Costanti.gs', 'Ripartizione.gs', 'Composizione.gs', 'Validazioni.gs'];
+
+// Ogni test e' una funzione che restituisce una stringa di esito, come nel
+// log di esecuzione di Apps Script.
+const TEST = ['testRipartizione', 'testComposizione'];
 
 const ambiente = {
   // Apps Script espone Logger come globale; qui basta che non esploda.
@@ -37,15 +43,19 @@ for (const nome of FILE) {
   vm.runInContext(fs.readFileSync(percorso, 'utf8'), ambiente, { filename: percorso });
 }
 
-if (typeof ambiente.testRipartizione !== 'function') {
-  console.error('testRipartizione() non trovata in Validazioni.gs.');
-  process.exit(2);
+let falliti = 0;
+
+for (const nome of TEST) {
+  if (typeof ambiente[nome] !== 'function') {
+    console.error(nome + '() non trovata in Validazioni.gs.');
+    process.exit(2);
+  }
+  const esito = ambiente[nome]();
+  console.log(nome + ': ' + esito);
+  // I test comunicano l'esito con una stringa, perche' in Apps Script la si
+  // legge nel log di esecuzione. Se cambi quel messaggio, cambia anche questa
+  // riga.
+  if (esito.indexOf('Tutti i test passati') !== 0) falliti++;
 }
 
-const esito = ambiente.testRipartizione();
-console.log(esito);
-
-// testRipartizione() comunica l'esito con una stringa, perche' in Apps Script
-// la si legge nel log di esecuzione. Se cambi quel messaggio, cambia anche
-// questa riga.
-process.exit(esito.indexOf('Tutti i test passati') === 0 ? 0 : 1);
+process.exit(falliti ? 1 : 0);
