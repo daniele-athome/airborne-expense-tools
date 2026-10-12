@@ -5,7 +5,8 @@
   "description": "Airborne expense tools",
   "scripts": {
     "test": "node scripts/test.js",
-    "push": "clasp push"
+    "push": "clasp push",
+    "deploy": "clasp push && clasp deploy -i AKfycbyFwai0gnhbUQhNcqd3RKT56SCzGud4CUCWZySSOemUkVjp_pjl2LesRSUIZvqPWGLqKg"
   },
   "devDependencies": {
     "@google/clasp": "^3.4.0",
