@@ -129,30 +129,34 @@ function testRipartizione() {
   verifica('90 tra 3', [30, 30, 30],
     importi(calcolaQuote_(90, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
 
-  // Resto di un euro al socio configurato.
-  verifica('100 tra 3', [34, 33, 33],
+  // Resto di un centesimo al socio configurato.
+  verifica('100 tra 3', [33.34, 33.33, 33.33],
     importi(calcolaQuote_(100, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
 
-  // Parte decimale interamente al socio configurato.
-  verifica('100,50 tra 3', [34.5, 33, 33],
+  // Importo con decimali che si divide esatto: nessun resto, quote tutte uguali.
+  verifica('100,50 tra 3', [33.5, 33.5, 33.5],
     importi(calcolaQuote_(100.50, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
 
+  // Importo con decimali e resto: solo il centesimo in eccesso si sposta.
+  verifica('100,51 tra 3', [33.51, 33.5, 33.5],
+    importi(calcolaQuote_(100.51, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
+
   // Il socio di arrotondamento non e' il primo dell'elenco.
-  verifica('100 tra 3, resto a Socio2', [33, 34, 33],
+  verifica('100 tra 3, resto a Socio2', [33.33, 33.34, 33.33],
     importi(calcolaQuote_(100, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio2')));
 
   // Selezione parziale.
-  verifica('101 tra 2', [51, 50],
-    importi(calcolaQuote_(101, 'UGUALE_SELEZIONE', ['Socio1', 'Socio3'], {}, 'Socio1')));
+  verifica('100,01 tra 2', [50.01, 50],
+    importi(calcolaQuote_(100.01, 'UGUALE_SELEZIONE', ['Socio1', 'Socio3'], {}, 'Socio1')));
 
   // Il socio di arrotondamento non partecipa: ripiego sul primo, con avviso.
-  var r = calcolaQuote_(101, 'UGUALE_SELEZIONE', ['Socio2', 'Socio3'], {}, 'Socio1');
-  verifica('ripiego arrotondamento', [51, 50], importi(r));
+  var r = calcolaQuote_(100.01, 'UGUALE_SELEZIONE', ['Socio2', 'Socio3'], {}, 'Socio1');
+  verifica('ripiego arrotondamento', [50.01, 50], importi(r));
   if (!r.avvisi.length) errori.push('ripiego arrotondamento: manca l\'avviso');
 
   // Importo inferiore al numero di partecipanti: base zero, tutto al resto.
-  verifica('2 tra 3', [2, 0, 0],
-    importi(calcolaQuote_(2, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
+  verifica('0,02 tra 3', [0.02, 0, 0],
+    importi(calcolaQuote_(0.02, 'UGUALE_TUTTI', ['Socio1', 'Socio2', 'Socio3'], {}, 'Socio1')));
 
   // Manuale che pareggia.
   verifica('manuale ok', [60, 40.5],
@@ -183,15 +187,15 @@ function testRipartizione() {
   var tre = ['Socio1', 'Socio2', 'Socio3'];
 
   // Troncamento verso lo zero, non verso il basso.
-  verifica('-100 tra 3', [-34, -33, -33],
+  verifica('-100 tra 3', [-33.34, -33.33, -33.33],
     importi(calcolaQuote_(-100, 'UGUALE_TUTTI', tre, {}, 'Socio1')));
 
-  verifica('-100,50 tra 3', [-34.5, -33, -33],
-    importi(calcolaQuote_(-100.50, 'UGUALE_TUTTI', tre, {}, 'Socio1')));
+  verifica('-100,51 tra 3', [-33.51, -33.5, -33.5],
+    importi(calcolaQuote_(-100.51, 'UGUALE_TUTTI', tre, {}, 'Socio1')));
 
   // La proprieta' che giustifica il troncamento verso lo zero:
   // un rimborso integrale deve annullare esattamente la spesa originaria.
-  [100, 100.50, 2, 1234.56, 7, 999.99].forEach(function (v) {
+  [100, 100.50, 100.51, 0.02, 2, 1234.56, 7, 999.99].forEach(function (v) {
     var pos = importi(calcolaQuote_(v, 'UGUALE_TUTTI', tre, {}, 'Socio1'));
     var neg = importi(calcolaQuote_(-v, 'UGUALE_TUTTI', tre, {}, 'Socio1'));
     var somme = pos.map(function (x, i) { return Math.round((x + neg[i]) * 100) / 100; });

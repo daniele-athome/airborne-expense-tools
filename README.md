@@ -219,13 +219,14 @@ sono sul conto di qualcun altro.
 
 ### Perché il troncamento è verso lo zero
 
-Le quote si arrotondano troncando all'intero **verso lo zero**, non verso il
+Le quote si arrotondano troncando al centesimo **verso lo zero**, non verso il
 basso. Serve a garantire `quote(-X) = -quote(X)`, cioè che un rimborso integrale
 annulli esattamente la spesa che rimborsa.
 
-Con `Math.floor`, 100 fra tre dà 34/33/33 ma −100 darebbe −34/−34/−32: rimborsata
-l'intera spesa, Socio1 resterebbe a +2 e gli altri a −1. È la proprietà
-verificata da `testRipartizione()`, su più importi.
+Con `Math.floor`, 100 fra tre dà 33,34/33,33/33,33 ma −100 darebbe
+−33,33/−33,33/−33,34: il centesimo di resto finirebbe in capo a un socio
+diverso, e rimborsata l'intera spesa Socio1 resterebbe a +0,01 e Socio3 a
+−0,01. È la proprietà verificata da `testRipartizione()`, su più importi.
 
 ## Il prospetto
 
@@ -320,12 +321,13 @@ pareggiano l'importo della loro spesa.
 
 ### Arrotondamento
 
-Le quote sono in euro interi. La quota base è l'importo diviso i partecipanti,
-troncato all'intero verso lo zero (per le entrate, negative, vedi sopra); tutto
-il resto, decimali compresi, va al socio
-indicato da `socio_arrotondamento`.
+Le quote sono al centesimo. La quota base è l'importo diviso i partecipanti,
+troncato al centesimo verso lo zero (per le entrate, negative, vedi sopra); il
+resto — da zero a *n* − 1 centesimi — va al socio indicato da
+`socio_arrotondamento`.
 
-    100,50 tra tre soci  →  33 / 33 / 34,50
+    100,00 tra tre soci  →  33,33 / 33,33 / 33,34
+    100,50 tra tre soci  →  33,50 / 33,50 / 33,50
 
 `MANUALE` è l'eccezione: lì i decimali sono liberi, purché la somma pareggi
 esattamente il totale.

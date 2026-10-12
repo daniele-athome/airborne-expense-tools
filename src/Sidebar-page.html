@@ -330,7 +330,7 @@ function quoteLocali() {
   // Ripartizione.gs, cosi' l'anteprima non mente mai sul risultato.
   var sg = segno();
   var assoluto = Math.abs(totale);
-  var base = Math.floor(assoluto / n / 100) * 100;
+  var base = Math.floor(assoluto / n);
   var resto = assoluto - base * n;
   var dest = scelti.indexOf(DATI.socioArrotondamento) !== -1
     ? DATI.socioArrotondamento : scelti[0];

@@ -90,8 +90,8 @@ zero. Qualunque modifica che tocchi la contabilità va verificata contro questa
 proprietà prima di ogni altra cosa.
 
 Criteri di ripartizione: `UGUALE_TUTTI`, `UGUALE_SELEZIONE`, `MANUALE`.
-L'arrotondamento è all'euro e il residuo va al socio indicato da
-`socio_arrotondamento`. Il tipo `ENTRATA` ha semantica di segno negativo, e
+L'arrotondamento è al centesimo e il residuo (da 0 a *n* − 1 centesimi) va al
+socio indicato da `socio_arrotondamento`. Il tipo `ENTRATA` ha semantica di segno negativo, e
 l'arrotondamento è sign-aware — troncamento verso zero — per preservare
 `quote(-X) = -quote(X)`.
 

@@ -10,18 +10,20 @@
  *
  * Regola di arrotondamento (UGUALE_TUTTI e UGUALE_SELEZIONE):
  *   - la quota base e' l'importo diviso per il numero di partecipanti,
- *     troncato all'euro intero VERSO LO ZERO;
- *   - tutto il resto, decimali compresi, va al socio indicato dalla chiave
+ *     troncato al centesimo VERSO LO ZERO;
+ *   - il resto, da 0 a n-1 centesimi, va al socio indicato dalla chiave
  *     socio_arrotondamento in Metadati.
  *
- *   Esempio: 100,50 tra tre soci -> 33 / 33 / 34,50.
+ *   Esempi: 100,00 tra tre soci -> 33,34 / 33,33 / 33,33;
+ *           100,50 tra tre soci -> 33,50 / 33,50 / 33,50.
  *
  * Il troncamento e' verso lo zero, non verso il basso, perche' gli importi
  * possono essere negativi (le ENTRATE). La proprieta' da preservare e'
  * quote(-X) = -quote(X): una nota di credito che rimborsa l'intero importo di
  * una spesa deve azzerare esattamente le quote di quella spesa. Con Math.floor
- * su un negativo, -100 tra tre darebbe -34/-34/-32 invece di -34/-33/-33, e il
- * rimborso integrale lascerebbe residui su tutti.
+ * su un negativo, -100 tra tre darebbe -33,33/-33,33/-33,34 con il resto in
+ * capo a un socio diverso da quello della spesa positiva, e il rimborso
+ * integrale lascerebbe residui su tutti.
  *
  * Se il socio configurato non partecipa alla spesa (caso possibile con
  * UGUALE_SELEZIONE), il resto va al primo partecipante in ordine di
@@ -79,8 +81,8 @@ function calcolaQuote_(importo, criterio, partecipanti, manuali, socioArrotondam
   // il troncamento e' sempre verso lo zero e vale quote(-X) = -quote(X).
   var segno = totale < 0 ? -1 : 1;
   var assoluto = Math.abs(totale);
-  var base = Math.floor(assoluto / n / 100) * 100;   // quota base in centesimi
-  var resto = assoluto - base * n;
+  var base = Math.floor(assoluto / n);               // quota base in centesimi
+  var resto = assoluto - base * n;                   // da 0 a n-1 centesimi
 
   var destinatario = socioArrotondamento;
   if (partecipanti.indexOf(destinatario) === -1) {
