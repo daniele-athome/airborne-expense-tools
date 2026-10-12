@@ -368,8 +368,13 @@ il controllo sugli importi con più di due decimali.
 ## Test
 
 `testRipartizione()` in `Validazioni.gs` verifica la logica di calcolo delle
-quote senza toccare il foglio. Lanciala dall'editor dopo ogni modifica a
-`Ripartizione.gs`; il risultato finisce nel log di esecuzione.
+quote senza toccare il foglio. Va rilanciata dopo ogni modifica a
+`Ripartizione.gs`, in uno dei due modi:
+
+    npm test
+
+oppure dall'editor Apps Script, selezionando la funzione: lì il risultato
+finisce nel log di esecuzione.
 
 ## Avvertenze
 

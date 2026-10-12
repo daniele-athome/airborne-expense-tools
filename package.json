@@ -4,6 +4,7 @@
   "private": true,
   "description": "Airborne expense tools",
   "scripts": {
+    "test": "node scripts/test.js",
     "push": "clasp push"
   },
   "devDependencies": {

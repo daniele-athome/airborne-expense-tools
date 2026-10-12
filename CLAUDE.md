@@ -59,10 +59,24 @@ agganciate al menu **non** devono avere il suffisso.
 ## Test
 
 L'unico test automatico è `testRipartizione()` in `Validazioni.gs`: copre solo
-`Ripartizione.gs`, non tocca il foglio, si lancia dall'editor e scrive l'esito
-nel log di esecuzione. Va rilanciato dopo ogni modifica alla ripartizione, e
-include la verifica di `quote(-X) = -quote(X)` su più importi. Tutto il resto
-(formule, controlli, scritture) si collauda solo sul foglio reale.
+`Ripartizione.gs`, non tocca il foglio, e include la verifica di
+`quote(-X) = -quote(X)` su più importi. Va rilanciato dopo ogni modifica alla
+ripartizione. Tutto il resto (formule, controlli, scritture) si collauda solo
+sul foglio reale.
+
+    npm test
+
+`scripts/test.js` carica `Costanti.gs`, `Ripartizione.gs` e `Validazioni.gs` in
+un contesto `vm`, con uno stub di `Logger`, e restituisce exit code diverso da
+zero se qualche caso fallisce. Nessuna dipendenza: usa solo i moduli di Node.
+La stessa funzione resta lanciabile dall'editor Apps Script, dove scrive
+l'esito nel log di esecuzione.
+
+Il runner funziona perché quei tre file non toccano il foglio e non hanno
+codice a livello globale. Se un giorno `Validazioni.gs` ne acquistasse, o se
+`Ripartizione.gs` smettesse di essere logica pura, il runner va cambiato
+insieme: è il prezzo di poter collaudare senza aprire il browser, e vale la
+pena pagarlo.
 
 ## Modello dati
 
