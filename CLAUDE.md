@@ -36,7 +36,7 @@ di prova separato.
 | `Ripartizione.gs`      | Logica **pura** (nessun accesso al foglio): `calcolaQuote_()`, `quoteManuali_()`, `validaPagamenti_()`, conversioni `inCentesimi_()`/`inEuro_()`.                                                                                                            |
 | `Sidebar.gs`           | Lato server del modulo: apertura della sidebar, `getDatiIniziali()`, `salvaSpesa()`, `motivoBloccoModifica_()`, `normalizzaPayload_()`, annullamento/riattivazione, `ripristinaColonneCalcolate()`.                                                         |
 | `Sidebar-page.html`    | Template HTML del modulo di inserimento e modifica, servito sia come sidebar sia come web app. Variabili di template `idSpesa`, `web` e `urlBase`, **obbligatorie in entrambi i casi** (una variabile assente fa fallire il template). Con `web` il `body` prende la classe `web` (stile per il telefono), *Chiudi* sparisce e compaiono i link all'elenco. `bloccaModulo()` lo mette in sola lettura. `quoteLocali()` è una **copia** in JS client della ripartizione, usata solo per l'anteprima. |
-| `Web.gs`               | `doGet(e)`: instrada fra elenco (`/exec`), modifica (`?id=N`), nuovo movimento (`?nuovo=1`) e conguaglio (`?conguaglio=1`); `elencoMovimenti_()` e `formattaEuro_()` per l'elenco.                                                                                                      |
+| `Web.gs`               | `doGet(e)`: instrada sul parametro `r` fra elenco (`/exec` o `?r=list`), modifica (`?r=edit&id=N`), nuovo movimento (`?r=create`) e conguaglio (`?r=balance`); i nomi delle rotte stanno in `ROTTE` e i link si costruiscono con `urlRotta_()`. Più `elencoMovimenti_()` e `formattaEuro_()` per l'elenco.                                                                                                      |
 | `Elenco-page.html`     | Elenco dei movimenti attivi per la web app, generato lato server negli scriptlet, con ricerca client-side sulla descrizione.                                                                                                                              |
 | `Conguaglio.gs`        | Calcolo greedy del minor numero di bonifici (`calcolaConguaglio_()`, in centesimi) e scrittura in `Giroconti`.                                                                                                                                             |
 | `Conguaglio-page.html` | Dialog modale del conguaglio, template con scriptlet `<? ?>`.                                                                                                                                                                                             |
@@ -254,13 +254,18 @@ telefono.
 
 Decisioni prese, da non rimettere in discussione:
 
-- **Quattro pagine separate, scelte da `doGet(e)` in base all'URL**: elenco dei
-  movimenti attivi (`/exec`, pagina iniziale), modulo in modifica
-  (`?id=N`), modulo vuoto (`?nuovo=1`) e conguaglio (`?conguaglio=1`). Pagine
+- **Quattro pagine separate, scelte da `doGet(e)` sul parametro di rotta `r`**:
+  elenco dei movimenti attivi (`/exec` o `?r=list`, pagina iniziale), modulo in
+  modifica (`?r=edit&id=N`), modulo vuoto (`?r=create`) e conguaglio
+  (`?r=balance`). Pagine
   separate e non una pagina unica: il modulo si costruisce una volta sola e non
   sa reinizializzarsi su un altro movimento, e così il tasto indietro di
-  Android funziona da solo. Un `id` inesistente riporta all'elenco con un
-  avviso.
+  Android funziona da solo. Un `id` inesistente o mancante riporta all'elenco
+  con un avviso; una rotta non riconosciuta vale come `list`, senza avviso
+  (l'unico URL distribuito ai soci è `/exec` nudo, il resto si raggiunge
+  navigando). I parametri della prima versione (`?id=N`, `?nuovo=1`,
+  `?conguaglio=1`) non sono più riconosciuti: la retrocompatibilità è stata
+  scartata di proposito.
 - **Dal telefono si inserisce, si modifica e si guarda il conguaglio.**
   Annullamento, riattivazione, calcolo del conguaglio e scrittura dei giroconti
   restano nel foglio: la pagina del conguaglio è di sola lettura e non apre un

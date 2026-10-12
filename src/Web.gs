@@ -4,12 +4,19 @@
  * Interfaccia web per il telefono. L'app Google Sheets per Android non
  * esegue menu personalizzati, sidebar ne' dialog: il browser si'.
  *
- * Quattro pagine, scelte dai parametri dell'URL:
+ * Quattro pagine, scelte dal parametro di rotta `r`:
  *
- *   /exec              elenco dei movimenti attivi (Elenco-page)
- *   /exec?id=17        modulo in modifica         (Sidebar-page)
- *   /exec?nuovo=1      modulo vuoto               (Sidebar-page)
- *   /exec?conguaglio=1 conguaglio e debiti        (Debiti-page)
+ *   /exec                 elenco dei movimenti attivi (Elenco-page)
+ *   /exec?r=list          lo stesso elenco            (Elenco-page)
+ *   /exec?r=edit&id=17    modulo in modifica          (Sidebar-page)
+ *   /exec?r=create        modulo vuoto                (Sidebar-page)
+ *   /exec?r=balance       conguaglio e debiti         (Debiti-page)
+ *
+ * Una rotta non riconosciuta vale come `list`: l'unico URL distribuito ai
+ * soci e' /exec nudo, le altre pagine si raggiungono navigando, e un link
+ * storto deve portare da qualche parte senza spiegazioni. I parametri della
+ * prima versione (`id`, `nuovo`, `conguaglio`) non sono piu' riconosciuti:
+ * cadono anche loro sull'elenco.
  *
  * Pagine separate e non una pagina unica: il modulo della sidebar si riusa
  * senza toccarlo (si costruisce una volta sola e non sa reinizializzarsi su
@@ -34,6 +41,18 @@
  * seconda crea e cancella un foglio di appoggio.
  */
 
+/**
+ * Le rotte, in un posto solo: le leggono sia doGet() che urlRotta_(), e un
+ * nome scritto a mano in uno dei due produrrebbe un link che riporta
+ * all'elenco senza dire perche'.
+ */
+var ROTTE = {
+  LISTA: 'list',
+  MODIFICA: 'edit',
+  NUOVO: 'create',
+  CONGUAGLIO: 'balance'
+};
+
 function doGet(e) {
   var par = (e && e.parameter) || {};
 
@@ -41,16 +60,36 @@ function doGet(e) {
   // tornerebbe alla web app. Serve l'URL completo del deployment.
   var url = ScriptApp.getService().getUrl();
 
-  if (par.id) {
+  var r = String(par.r || ROTTE.LISTA);
+
+  if (r === ROTTE.NUOVO) return paginaModulo_(url, null);
+  if (r === ROTTE.CONGUAGLIO) return paginaConguaglio_(url);
+
+  if (r === ROTTE.MODIFICA) {
+    // Un edit senza id e' un link rotto, non una richiesta di inserimento:
+    // per il modulo vuoto c'e' la rotta `create`.
+    if (!par.id) return paginaElenco_(url, 'Movimento non indicato.');
     var id = Number(par.id);
     if (!isFinite(id) || !trovaRigaSpesa_(id)) {
       return paginaElenco_(url, 'Movimento ' + par.id + ' non trovato.');
     }
     return paginaModulo_(url, id);
   }
-  if (par.nuovo !== undefined) return paginaModulo_(url, null);
-  if (par.conguaglio !== undefined) return paginaConguaglio_(url);
+
+  // `list` e qualunque rotta non riconosciuta, senza avviso.
   return paginaElenco_(url, '');
+}
+
+/**
+ * URL di una pagina della web app. L'elenco e' la rotta implicita e sta
+ * all'URL nudo del deployment, che e' anche l'`urlBase` dei template.
+ *
+ * La '&' non va scritta '&amp;': questi URL entrano nelle pagine da
+ * scriptlet <?= ?>, che fa l'escape, e pre-escaparla qui la raddoppierebbe.
+ */
+function urlRotta_(url, rotta, id) {
+  var q = url + '?r=' + rotta;
+  return id ? q + '&id=' + id : q;
 }
 
 function paginaModulo_(url, id) {
@@ -65,8 +104,8 @@ function paginaElenco_(url, avviso) {
   // 'Elenco-page': vedi la nota in Sidebar.gs sui nomi dei file.
   var t = HtmlService.createTemplateFromFile('Elenco-page');
   t.movimenti = elencoMovimenti_(url);
-  t.urlNuovo = url + '?nuovo=1';
-  t.urlConguaglio = url + '?conguaglio=1';
+  t.urlNuovo = urlRotta_(url, ROTTE.NUOVO);
+  t.urlConguaglio = urlRotta_(url, ROTTE.CONGUAGLIO);
   t.avviso = avviso || '';
   return paginaWeb_(t, 'Movimenti');
 }
@@ -128,7 +167,7 @@ function elencoMovimenti_(url) {
       descrizione: String(v[COL.SPESE.DESCRIZIONE - 1] || ''),
       importo: formattaEuro_(Math.abs(Number(v[COL.SPESE.IMPORTO - 1]) || 0)),
       entrata: String(v[COL.SPESE.TIPO - 1]) === 'ENTRATA',
-      link: url + '?id=' + id
+      link: urlRotta_(url, ROTTE.MODIFICA, id)
     });
   }
 
